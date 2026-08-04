@@ -116,13 +116,74 @@
                   "desc": ""
                 },
                 "토머스 홉스 Thomas Hobbes": {
+                  "desc": ""
                 }
               }
             },
-            "정치철학 (16~18세기)": {},
-            "경험주의 (17~18세기)": {},
-            "독일 관념론 (18~19세기)": {},
-            "근대→현대 연결 철학": {}
+            "정치철학 (16~18세기)": {
+              "desc": "",
+              "children": {
+                "니콜로 마키아벨리 Niccolò Machiavelli": {
+                  "desc": ""
+                },
+                "토머스 홉스 Thomas Hobbes": {
+                  "desc": ""
+                },
+                "존 로크 John Locke": {
+                  "desc": ""
+                },
+                "장 자크 루소 Jean-Jacques Rousseau": {
+                  "desc": ""
+                },
+                "샤를 드 몽테스키외 Montesquieu": {
+                  "desc": ""
+                "볼테르 Voltaire": {
+                  "desc": ""
+                },
+                "임마누엘 칸트 Immanuel Kant": {
+                  "desc": ""
+                }
+              }
+            },
+            "경험주의 (17~18세기)": {
+              "desc": "",
+              "children": {
+                "존 로크 John Locke": {
+                  "desc": ""
+                },
+                "데이비드 흄 David Hume": {
+                  "desc": ""
+                },
+                "조지 버클리 George Berkeley": {
+                  "desc": ""
+                },
+                "존 스튜어트 밀 John Stuart Mill": {
+                  "desc": ""
+                }
+              }
+            },
+            "독일 관념론 (18~19세기)": {
+              "desc": "",
+              "children": {
+                "임마누엘 칸트 Immanuel Kant": {
+                  "desc": ""
+                },
+                "프리드리히 헤겔 Friedrich Hegel": {
+                  "desc": ""
+                }
+              }
+            },
+            "근대→현대 연결 철학": {
+              "desc": "",
+              "children": {
+                "아르투어 쇼펜하우어 Arthur Schopenhauer": {
+                  "desc": ""
+                },
+                "쇠렌 아뷔에 키르케고르 Søren Kierkegaard": {
+                  "desc": ""
+                }
+              }
+            }
           }
         },
         "현대 철학": {
