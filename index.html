@@ -934,6 +934,7 @@
     // 맨 아래 목록에서는 중복되지 않도록 뺍니다.
     const inlineChildNames = new Set();
     const usedLinks = new Set();
+    const occurrenceCounts = new Map();
     if (hasDesc){
       node.desc.split('\n').forEach((line, i) => {
         const trimmed = line.trim();
@@ -944,7 +945,7 @@
           inlineChildNames.add(trimmed);
           return;
         }
-        const p = buildDescLine(line, node.inlineToggles, node.links, usedLinks, node.footnotes);
+        const p = buildDescLine(line, node.inlineToggles, node.links, usedLinks, node.footnotes, occurrenceCounts);
         p.classList.add('category-desc', 'fade-item');
         p.style.animationDelay = Math.min(i * 40, 300) + 'ms';
         listEl.appendChild(p);
@@ -990,17 +991,31 @@
     updateReligionOverlay();
   }
 
+  // links/footnotes 값에서 경로(또는 각주 키)와 "몇 번째 등장을 링크할지"를 꺼냅니다.
+  // 값이 배열/문자열 그대로면 1번째 등장을 뜻하고, { path/key, occurrence } 형태면
+  // occurrence번째 등장에만 링크가 걸립니다 (노션에서 같은 단어가 여러 번 나와도
+  // 실제로는 한 곳에만 링크가 걸려있는 경우를 그대로 반영하기 위함).
+  function normalizeLinkSpec(value){
+    if (value && typeof value === 'object' && !Array.isArray(value)){
+      return { target: value.path !== undefined ? value.path : value.key, occurrence: value.occurrence || 1 };
+    }
+    return { target: value, occurrence: 1 };
+  }
+
   // 설명글 한 줄 안에서 특정 단어를 밑줄 쳐진 클릭 가능한 인라인 요소로 바꿔줍니다.
   // - inlineToggles: 클릭 시 지도 색칠 토글 (종교 분파용)
   // - links: 클릭 시 노션의 페이지 링크처럼 트리 안 다른 노드로 즉시 이동
   //   JSON 예: "links": { "아리스토텔레스": ["철학사","서양/중근동 철학사 (서양 철학사)","고대 철학","고전 철학 (기원전 5~4세기)","아리스토텔레스 ..."] }
+  //   여러 번 등장하는 단어 중 특정 등장에만 걸려있다면:
+  //   "links": { "플라톤": { "path": [...], "occurrence": 2 } } (두 번째 등장에만 링크)
   // - footnotes: 노션의 '각주' 페이지처럼, 클릭하면 이동하지 않고 그 자리에
   //   작은 팝업으로 각주 내용만 보여줌 (사이트에 별도 페이지/버튼 없음)
   //   JSON 예: "footnotes": { "아르케": "아르케 ἀρχή | Arche" } — 값은 data/footnotes.json의 키
   // 나머지 글자는 그대로 텍스트로 둡니다.
-  // links/footnotes는 노션 원본처럼 "실제로 링크가 걸린 첫 등장" 한 번만 반영합니다.
-  // usedLinks(Set)에 이미 있는 단어는 이후에 다시 나와도 그냥 평범한 텍스트로 둡니다.
-  function buildDescLine(line, inlineToggles, links, usedLinks, footnotes){
+  // links/footnotes는 노션 원본처럼 "실제로 링크가 걸린 등장"만 반영합니다.
+  // occurrenceCounts(Map)로 단어별 등장 횟수를 세고, usedLinks(Set)로 이미 처리된
+  // 단어는 이후 등장에서 다시 링크가 걸리지 않도록 막습니다.
+  function buildDescLine(line, inlineToggles, links, usedLinks, footnotes, occurrenceCounts){
     const p = document.createElement('p');
     if (!inlineToggles && !links && !footnotes){ p.textContent = line; return p; }
 
@@ -1017,10 +1032,17 @@
       if (match.index > lastIndex) p.appendChild(document.createTextNode(line.slice(lastIndex, match.index)));
       const word = match[0];
       const isLink = links && Object.prototype.hasOwnProperty.call(links, word);
-      const isFootnote = footnotes && Object.prototype.hasOwnProperty.call(footnotes, word);
+      const isFootnote = !isLink && footnotes && Object.prototype.hasOwnProperty.call(footnotes, word);
       const alreadyUsed = usedLinks && usedLinks.has(word);
-      if (isLink && !alreadyUsed){
-        const path = links[word];
+      let occurrence = 1;
+      if ((isLink || isFootnote) && occurrenceCounts){
+        occurrence = (occurrenceCounts.get(word) || 0) + 1;
+        occurrenceCounts.set(word, occurrence);
+      }
+      const linkSpec = isLink ? normalizeLinkSpec(links[word]) : null;
+      const footnoteSpec = isFootnote ? normalizeLinkSpec(footnotes[word]) : null;
+      if (isLink && !alreadyUsed && occurrence === linkSpec.occurrence){
+        const path = linkSpec.target;
         const span = document.createElement('span');
         span.className = 'inline-link';
         span.textContent = word;
@@ -1030,8 +1052,8 @@
         });
         p.appendChild(span);
         if (usedLinks) usedLinks.add(word);
-      } else if (isFootnote && !alreadyUsed){
-        const fnKey = footnotes[word];
+      } else if (isFootnote && !alreadyUsed && occurrence === footnoteSpec.occurrence){
+        const fnKey = footnoteSpec.target;
         const span = document.createElement('span');
         span.className = 'inline-footnote';
         span.textContent = word;
