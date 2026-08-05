@@ -764,6 +764,7 @@
       <label class="sub"><input type="checkbox" onchange="window.toggleEmpireOverlay('westRome', true, this)"> 서로마</label>
       <label class="sub"><input type="checkbox" onchange="window.toggleEmpireOverlay('byzantium', true, this)"> 동로마(비잔틴)</label>
       <label class="sub"><input type="checkbox" onchange="window.toggleEmpireOverlay('hre', true, this)"> 신성로마제국</label>
+      <label><input type="checkbox" onchange="window.toggleEmpireOverlay('macedon', false, this)"> 마케도니아 제국</label>
       <label><input type="checkbox" onchange="window.toggleEmpireOverlay('ottoman', false, this)"> 오스만 제국</label>
       <label><input type="checkbox" onchange="window.toggleEmpireOverlay('mongol', false, this)"> 몽골 제국</label>
       <label><input type="checkbox" onchange="window.toggleEmpireOverlay('persia', false, this)"> 페르시아 제국</label>
@@ -1253,7 +1254,8 @@
     mongol:    '#004DAF',
     soviet:    '#CC0000',
     persia:    '#3800D3',
-    britain:   '#C8102E'
+    britain:   '#C8102E',
+    macedon:   '#D6B429'
   };
   const EMPIRE_COUNTRIES = {
     // 로마 제국 — 트라야누스 황제 시기(서기 117년) 최대 영토
@@ -1318,14 +1320,25 @@
       'Kuwait','Bahrain','Qatar','United Arab Emirates','Oman','Yemen','Jamaica',
       'Bahamas','Barbados','Trinidad and Tobago','Belize','Guyana','Fiji',
       'Papua New Guinea','Solomon Islands','Vanuatu'
+    ],
+    // 마케도니아 제국(알렉산드로스 대왕) — 기원전 323년경 최대 영토
+    macedon: [
+      'Greece','North Macedonia','Albania','Bulgaria','Turkey','Syria','Lebanon',
+      'Israel','Palestine','Jordan','Egypt','Iraq','Iran','Armenia','Azerbaijan',
+      'Turkmenistan','Uzbekistan','Tajikistan','Afghanistan','Pakistan','Kuwait'
     ]
   };
+  // 마지막으로 체크한 제국이 겹치는 국가 위에 덮어씌워지도록, 활성화 순서를
+  // 따로 기록해서 colorForCountry에서 "가장 최근에 켠 레이어"를 우선합니다.
+  let empireLayerOrder = [];
   function toggleEmpireOverlay(key, isSub, checkbox){
     const layerId = (isSub ? 'empire-sub-' : 'empire-') + key;
     if (window.WorldData.overlayLayers[layerId]){
       clearOverlayLayer(layerId);
+      empireLayerOrder = empireLayerOrder.filter(id => id !== layerId);
     } else {
       setOverlayLayer(layerId, EMPIRE_COUNTRIES[key] || [], EMPIRE_COLORS[key]);
+      empireLayerOrder.push(layerId);
     }
   }
   window.toggleEmpireOverlay = toggleEmpireOverlay;
@@ -1428,8 +1441,8 @@
   }
   function colorForCountry(name){
     // 우선순위: 직접 클릭(흰색) > 분파 색(sect-*) > 종교 지역 색(religion-*) >
-    // 로마 하위 제국(empire-sub-*, 서로마/동로마/신성로마제국이 로마 제국 기본
-    // 색칠 위에 겹쳐 보이도록) > 그 외 제국(empire-*) > 기타 레이어
+    // 제국(empire-*, empire-sub-* — 가장 최근에 체크한 제국이 겹치는 국가 위에
+    // 덮어씌워짐) > 기타 레이어
     if (window.WorldData.selected.has(name)) return SELECTED_COLOR;
     const layers = window.WorldData.overlayLayers;
     for (const key in layers){
@@ -1438,11 +1451,9 @@
     for (const key in layers){
       if (key.startsWith('religion-') && layers[key].countries.has(name)) return layers[key].color;
     }
-    for (const key in layers){
-      if (key.startsWith('empire-sub-') && layers[key].countries.has(name)) return layers[key].color;
-    }
-    for (const key in layers){
-      if (key.startsWith('empire-') && layers[key].countries.has(name)) return layers[key].color;
+    for (let i = empireLayerOrder.length - 1; i >= 0; i--){
+      const layer = layers[empireLayerOrder[i]];
+      if (layer && layer.countries.has(name)) return layer.color;
     }
     for (const key in layers){
       if (layers[key].countries.has(name)) return layers[key].color;
