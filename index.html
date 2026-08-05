@@ -914,7 +914,7 @@
       // 노션의 소제목(###)과 구분선(---) 구조를 그대로 반영
       let idx = 0;
       node.groups.forEach((group, gi) => {
-        if (gi > 0){
+        if (gi > 0 || hasDesc || hasIntro){
           const hr = document.createElement('div');
           hr.className = 'category-divider fade-item';
           listEl.appendChild(hr);
