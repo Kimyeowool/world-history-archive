@@ -108,6 +108,44 @@
     pointer-events:none;
   }
 
+  /* 제국 영토 오버레이 — 임시 테스트용 체크박스 패널 (추후 정식 UI로 교체 예정) */
+  .empire-overlay-panel{
+    position:absolute;
+    top:64px;
+    right:14px;
+    z-index:6;
+    display:flex;
+    flex-direction:column;
+    gap:5px;
+    padding:10px 12px;
+    background:rgba(8,10,8,0.6);
+    border:1px solid rgba(198,161,91,0.25);
+    border-radius:6px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    color:var(--parchment-dim);
+    pointer-events:auto;
+  }
+  .empire-overlay-panel label{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    cursor:pointer;
+    white-space:nowrap;
+    transition:color .15s ease;
+  }
+  .empire-overlay-panel label:hover{ color:var(--parchment); }
+  .empire-overlay-panel label.sub{
+    padding-left:16px;
+    font-size:10px;
+    opacity:0.85;
+  }
+  .empire-overlay-panel input[type="checkbox"]{
+    accent-color:var(--brass);
+    cursor:pointer;
+    margin:0;
+  }
+
   /* MAP */
   .map-wrap{
     margin-top:38px;
@@ -721,6 +759,18 @@
     <div class="map-overlay"></div>
     <div class="map-hint">드래그하여 회전 · 스크롤로 확대 · 국가 클릭</div>
 
+    <div class="empire-overlay-panel">
+      <label><input type="checkbox" onchange="window.toggleEmpireOverlay('rome', false, this)"> 로마 제국</label>
+      <label class="sub"><input type="checkbox" onchange="window.toggleEmpireOverlay('westRome', true, this)"> 서로마</label>
+      <label class="sub"><input type="checkbox" onchange="window.toggleEmpireOverlay('byzantium', true, this)"> 동로마(비잔틴)</label>
+      <label class="sub"><input type="checkbox" onchange="window.toggleEmpireOverlay('hre', true, this)"> 신성로마제국</label>
+      <label><input type="checkbox" onchange="window.toggleEmpireOverlay('ottoman', false, this)"> 오스만 제국</label>
+      <label><input type="checkbox" onchange="window.toggleEmpireOverlay('mongol', false, this)"> 몽골 제국</label>
+      <label><input type="checkbox" onchange="window.toggleEmpireOverlay('persia', false, this)"> 페르시아 제국</label>
+      <label><input type="checkbox" onchange="window.toggleEmpireOverlay('britain', false, this)"> 대영 제국</label>
+      <label><input type="checkbox" onchange="window.toggleEmpireOverlay('soviet', false, this)"> 소련</label>
+    </div>
+
     <div class="plaques-overlay">
       <p class="nav-caption">파트별로 살펴보기</p>
       <div class="plaques">
@@ -1189,6 +1239,97 @@
     }
   }
 
+  /* =====================================================================
+     제국 영토 오버레이 — 임시 테스트 기능. 5개국+3개 로마 하위 제국이
+     최전성기 영토 기준으로, 그 영토를 포함했던 "현재" 국경 국가들을
+     색칠합니다 (당시 실제 국경을 새로 그리지 않고 현재 국가 단위로 근사).
+     ===================================================================== */
+  const EMPIRE_COLORS = {
+    rome:      '#A10807',
+    westRome:  '#F09D7B',
+    byzantium: '#B5DEB4',
+    hre:       '#FDD40E',
+    ottoman:   '#19B591',
+    mongol:    '#004DAF',
+    soviet:    '#CC0000',
+    persia:    '#3800D3',
+    britain:   '#C8102E'
+  };
+  const EMPIRE_COUNTRIES = {
+    // 로마 제국 — 트라야누스 황제 시기(서기 117년) 최대 영토
+    rome: [
+      'Italy','Spain','Portugal','France','United Kingdom','Belgium','Netherlands',
+      'Switzerland','Austria','Germany','Slovenia','Croatia','Bosnia and Herzegovina',
+      'Serbia','Montenegro','North Macedonia','Albania','Greece','Bulgaria','Romania',
+      'Hungary','Turkey','Cyprus','Syria','Lebanon','Israel','Palestine','Jordan',
+      'Egypt','Libya','Tunisia','Algeria','Morocco'
+    ],
+    // 서로마 제국 — 395년 동서 분열 당시 서방 영역
+    westRome: [
+      'Italy','Spain','Portugal','France','United Kingdom','Belgium','Netherlands',
+      'Switzerland','Austria','Germany','Tunisia','Algeria','Morocco','Libya'
+    ],
+    // 동로마(비잔틴) 제국 — 유스티니아누스 1세 시기(555년경) 최대 영토
+    byzantium: [
+      'Turkey','Greece','Bulgaria','Romania','Serbia','North Macedonia','Albania',
+      'Cyprus','Syria','Lebanon','Israel','Palestine','Jordan','Egypt','Libya',
+      'Tunisia','Italy','Malta'
+    ],
+    // 신성로마제국 — 최대 영토(중세~근세)
+    hre: [
+      'Germany','Austria','Switzerland','Czechia','Netherlands','Belgium',
+      'Luxembourg','Slovenia','Italy','Poland'
+    ],
+    // 오스만 제국 — 1683년(2차 빈 포위) 무렵 최대 영토
+    ottoman: [
+      'Turkey','Greece','Bulgaria','Romania','Serbia','Bosnia and Herzegovina',
+      'Montenegro','North Macedonia','Albania','Kosovo','Hungary','Cyprus','Syria',
+      'Lebanon','Israel','Palestine','Jordan','Iraq','Saudi Arabia','Yemen','Egypt',
+      'Libya','Tunisia','Algeria'
+    ],
+    // 몽골 제국 — 1279년경 4대 칸국을 포함한 최대 영토
+    mongol: [
+      'China','Mongolia','Russia','Kazakhstan','Kyrgyzstan','Uzbekistan',
+      'Turkmenistan','Tajikistan','Iran','Iraq','Azerbaijan','Armenia','Georgia',
+      'Turkey','Afghanistan','Pakistan','South Korea','North Korea','Ukraine',
+      'Belarus','Syria'
+    ],
+    // 소련 — 해체 직전(1991년) 15개 연방 공화국 영토
+    soviet: [
+      'Russia','Ukraine','Belarus','Kazakhstan','Uzbekistan','Turkmenistan',
+      'Tajikistan','Kyrgyzstan','Georgia','Armenia','Azerbaijan','Moldova',
+      'Estonia','Latvia','Lithuania'
+    ],
+    // 페르시아 제국(아케메네스 왕조) — 다리우스 1세 시기 최대 영토
+    persia: [
+      'Iran','Iraq','Turkey','Syria','Lebanon','Israel','Palestine','Jordan','Egypt',
+      'Libya','Saudi Arabia','Armenia','Georgia','Azerbaijan','Turkmenistan',
+      'Uzbekistan','Tajikistan','Kyrgyzstan','Afghanistan','Pakistan','Greece',
+      'Bulgaria','North Macedonia','Bahrain','Kuwait','Oman','United Arab Emirates',
+      'Cyprus'
+    ],
+    // 대영 제국 — 1920년대 최대 영토(자치령·식민지·보호령 포함)
+    britain: [
+      'United Kingdom','Ireland','Canada','India','Pakistan','Bangladesh','Myanmar',
+      'Sri Lanka','Australia','New Zealand','South Africa','Egypt','Sudan','Kenya',
+      'Uganda','Tanzania','Nigeria','Ghana','Sierra Leone','Gambia','Zimbabwe',
+      'Zambia','Malawi','Botswana','Lesotho','eSwatini','Somalia','Malaysia',
+      'Singapore','Brunei','Cyprus','Malta','Jordan','Iraq','Israel','Palestine',
+      'Kuwait','Bahrain','Qatar','United Arab Emirates','Oman','Yemen','Jamaica',
+      'Bahamas','Barbados','Trinidad and Tobago','Belize','Guyana','Fiji',
+      'Papua New Guinea','Solomon Islands','Vanuatu'
+    ]
+  };
+  function toggleEmpireOverlay(key, isSub, checkbox){
+    const layerId = (isSub ? 'empire-sub-' : 'empire-') + key;
+    if (window.WorldData.overlayLayers[layerId]){
+      clearOverlayLayer(layerId);
+    } else {
+      setOverlayLayer(layerId, EMPIRE_COUNTRIES[key] || [], EMPIRE_COLORS[key]);
+    }
+  }
+  window.toggleEmpireOverlay = toggleEmpireOverlay;
+
   function renderCategoryPanel(){
     const panel = document.getElementById('category-panel');
     if (!panel || categoryStack.length === 0) return;
@@ -1286,7 +1427,9 @@
     }
   }
   function colorForCountry(name){
-    // 우선순위: 직접 클릭(흰색) > 분파 색(sect-*) > 종교 지역 색(religion-*) > 기타 레이어
+    // 우선순위: 직접 클릭(흰색) > 분파 색(sect-*) > 종교 지역 색(religion-*) >
+    // 로마 하위 제국(empire-sub-*, 서로마/동로마/신성로마제국이 로마 제국 기본
+    // 색칠 위에 겹쳐 보이도록) > 그 외 제국(empire-*) > 기타 레이어
     if (window.WorldData.selected.has(name)) return SELECTED_COLOR;
     const layers = window.WorldData.overlayLayers;
     for (const key in layers){
@@ -1294,6 +1437,12 @@
     }
     for (const key in layers){
       if (key.startsWith('religion-') && layers[key].countries.has(name)) return layers[key].color;
+    }
+    for (const key in layers){
+      if (key.startsWith('empire-sub-') && layers[key].countries.has(name)) return layers[key].color;
+    }
+    for (const key in layers){
+      if (key.startsWith('empire-') && layers[key].countries.has(name)) return layers[key].color;
     }
     for (const key in layers){
       if (layers[key].countries.has(name)) return layers[key].color;
