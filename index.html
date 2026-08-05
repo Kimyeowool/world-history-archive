@@ -570,6 +570,37 @@
     color:var(--brass);
     text-decoration-color:var(--brass);
   }
+  .inline-footnote{
+    cursor:pointer;
+    text-decoration:underline dotted;
+    text-decoration-color:var(--parchment-dim);
+    text-underline-offset:3px;
+    color:var(--parchment);
+    transition:color .2s ease, text-decoration-color .2s ease;
+  }
+  .inline-footnote:hover{
+    color:var(--brass);
+    text-decoration-color:var(--brass);
+  }
+  .footnote-popup{
+    position:fixed;
+    z-index:50;
+    max-width:280px;
+    padding:10px 12px;
+    border:1px solid var(--brass-dim);
+    border-radius:6px;
+    background:rgba(10,12,10,0.96);
+    color:var(--parchment);
+    font-family:'Spectral', serif;
+    font-size:14px;
+    line-height:1.5;
+    box-shadow:0 6px 20px rgba(0,0,0,0.6);
+    animation:footnotePopupIn .15s ease;
+  }
+  @keyframes footnotePopupIn{
+    from{ opacity:0; transform:translateY(-4px); }
+    to{ opacity:1; transform:translateY(0); }
+  }
   #data-loading-badge{
     display:none;
     position:fixed;
@@ -819,9 +850,12 @@
     '예술사': 'data/art.json',
     '전쟁사': 'data/war.json'
   };
+  // 노션의 '각주' 페이지 — 사이트에 카테고리 버튼이나 페이지로는 절대 노출되지
+  // 않고, desc 안에서 footnotes로 지정된 단어를 클릭했을 때만 작은 팝업으로 뜹니다.
+  const FOOTNOTES = {};
   let contentDataReady = false;
-  const contentDataPromise = Promise.all(
-    Object.entries(DATA_FILES).map(([key, path]) =>
+  const contentDataPromise = Promise.all([
+    ...Object.entries(DATA_FILES).map(([key, path]) =>
       fetch(path)
         .then(res => { if (!res.ok) throw new Error(res.status); return res.json(); })
         .then(json => { NOTION_TREE[key] = json; })
@@ -829,8 +863,12 @@
           console.error(`콘텐츠 로드 실패 (${key} ← ${path}):`, err);
           NOTION_TREE[key] = { children: {} }; // 실패해도 "콘텐츠 준비 중"으로 대체
         })
-    )
-  ).then(() => {
+    ),
+    fetch('data/footnotes.json')
+      .then(res => { if (!res.ok) throw new Error(res.status); return res.json(); })
+      .then(json => { Object.assign(FOOTNOTES, json); })
+      .catch(err => { console.error('각주 로드 실패:', err); })
+  ]).then(() => {
     contentDataReady = true;
     document.body.classList.remove('content-loading');
   });
@@ -906,7 +944,7 @@
           inlineChildNames.add(trimmed);
           return;
         }
-        const p = buildDescLine(line, node.inlineToggles, node.links, usedLinks);
+        const p = buildDescLine(line, node.inlineToggles, node.links, usedLinks, node.footnotes);
         p.classList.add('category-desc', 'fade-item');
         p.style.animationDelay = Math.min(i * 40, 300) + 'ms';
         listEl.appendChild(p);
@@ -956,16 +994,20 @@
   // - inlineToggles: 클릭 시 지도 색칠 토글 (종교 분파용)
   // - links: 클릭 시 노션의 페이지 링크처럼 트리 안 다른 노드로 즉시 이동
   //   JSON 예: "links": { "아리스토텔레스": ["철학사","서양/중근동 철학사 (서양 철학사)","고대 철학","고전 철학 (기원전 5~4세기)","아리스토텔레스 ..."] }
+  // - footnotes: 노션의 '각주' 페이지처럼, 클릭하면 이동하지 않고 그 자리에
+  //   작은 팝업으로 각주 내용만 보여줌 (사이트에 별도 페이지/버튼 없음)
+  //   JSON 예: "footnotes": { "아르케": "아르케 ἀρχή | Arche" } — 값은 data/footnotes.json의 키
   // 나머지 글자는 그대로 텍스트로 둡니다.
-  // links는 노션 원본처럼 "실제로 링크가 걸린 첫 등장" 한 번만 반영합니다.
+  // links/footnotes는 노션 원본처럼 "실제로 링크가 걸린 첫 등장" 한 번만 반영합니다.
   // usedLinks(Set)에 이미 있는 단어는 이후에 다시 나와도 그냥 평범한 텍스트로 둡니다.
-  function buildDescLine(line, inlineToggles, links, usedLinks){
+  function buildDescLine(line, inlineToggles, links, usedLinks, footnotes){
     const p = document.createElement('p');
-    if (!inlineToggles && !links){ p.textContent = line; return p; }
+    if (!inlineToggles && !links && !footnotes){ p.textContent = line; return p; }
 
     const toggleKeys = inlineToggles ? Object.keys(inlineToggles) : [];
     const linkKeys = links ? Object.keys(links) : [];
-    const keys = [...toggleKeys, ...linkKeys];
+    const footnoteKeys = footnotes ? Object.keys(footnotes) : [];
+    const keys = [...toggleKeys, ...linkKeys, ...footnoteKeys];
     if (keys.length === 0){ p.textContent = line; return p; }
 
     const pattern = new RegExp('(' + keys.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')', 'g');
@@ -975,6 +1017,7 @@
       if (match.index > lastIndex) p.appendChild(document.createTextNode(line.slice(lastIndex, match.index)));
       const word = match[0];
       const isLink = links && Object.prototype.hasOwnProperty.call(links, word);
+      const isFootnote = footnotes && Object.prototype.hasOwnProperty.call(footnotes, word);
       const alreadyUsed = usedLinks && usedLinks.has(word);
       if (isLink && !alreadyUsed){
         const path = links[word];
@@ -987,7 +1030,18 @@
         });
         p.appendChild(span);
         if (usedLinks) usedLinks.add(word);
-      } else if (!isLink && inlineToggles && Object.prototype.hasOwnProperty.call(inlineToggles, word)){
+      } else if (isFootnote && !alreadyUsed){
+        const fnKey = footnotes[word];
+        const span = document.createElement('span');
+        span.className = 'inline-footnote';
+        span.textContent = word;
+        span.addEventListener('click', e => {
+          e.stopPropagation();
+          showFootnotePopup(span, FOOTNOTES[fnKey] || '');
+        });
+        p.appendChild(span);
+        if (usedLinks) usedLinks.add(word);
+      } else if (!isLink && !isFootnote && inlineToggles && Object.prototype.hasOwnProperty.call(inlineToggles, word)){
         const sect = inlineToggles[word];
         const span = document.createElement('span');
         span.className = 'inline-toggle';
@@ -1005,6 +1059,24 @@
     }
     if (lastIndex < line.length) p.appendChild(document.createTextNode(line.slice(lastIndex)));
     return p;
+  }
+
+  // 각주 팝업 — 클릭한 단어 바로 아래에 작게 뜨고, 바깥을 클릭하면 닫힙니다.
+  let footnotePopupEl = null;
+  function showFootnotePopup(anchorEl, text){
+    hideFootnotePopup();
+    const popup = document.createElement('div');
+    popup.className = 'footnote-popup';
+    popup.textContent = text;
+    document.body.appendChild(popup);
+    const rect = anchorEl.getBoundingClientRect();
+    popup.style.left = Math.min(rect.left, window.innerWidth - popup.offsetWidth - 16) + 'px';
+    popup.style.top = (rect.bottom + 6) + 'px';
+    footnotePopupEl = popup;
+    setTimeout(() => document.addEventListener('click', hideFootnotePopup, { once: true }), 0);
+  }
+  function hideFootnotePopup(){
+    if (footnotePopupEl){ footnotePopupEl.remove(); footnotePopupEl = null; }
   }
 
   /* =====================================================================
