@@ -558,6 +558,18 @@
     color:#fff;
     text-decoration-color:#fff;
   }
+  .inline-link{
+    cursor:pointer;
+    text-decoration:underline;
+    text-decoration-color:var(--parchment-dim);
+    text-underline-offset:3px;
+    color:var(--parchment);
+    transition:color .2s ease, text-decoration-color .2s ease;
+  }
+  .inline-link:hover{
+    color:var(--brass);
+    text-decoration-color:var(--brass);
+  }
 
   #data-loading-badge{
     display:none;
@@ -864,7 +876,7 @@
 
     if (hasDesc){
       node.desc.split('\n').forEach((line, i) => {
-        const p = buildDescLine(line, node.inlineToggles);
+        const p = buildDescLine(line, node.inlineToggles, node.links);
         p.classList.add('category-desc', 'fade-item');
         p.style.animationDelay = Math.min(i * 40, 300) + 'ms';
         listEl.appendChild(p);
@@ -925,28 +937,48 @@
     updateReligionOverlay();
   }
 
-  // 설명글 한 줄 안에서 특정 단어(예: '수니파', '시아파')를 밑줄 쳐진
-  // 클릭 가능한 인라인 버튼으로 바꿔줍니다. 나머지 글자는 그대로 텍스트로 둡니다.
-  function buildDescLine(line, inlineToggles){
+  // 설명글 한 줄 안에서 특정 단어를 밑줄 쳐진 클릭 가능한 인라인 요소로 바꿔줍니다.
+  // - inlineToggles: 클릭 시 지도 색칠 토글 (종교 분파용)
+  // - links: 클릭 시 노션의 페이지 링크처럼 트리 안 다른 노드로 즉시 이동
+  //   JSON 예: "links": { "아리스토텔레스": ["철학사","서양/중근동 철학사 (서양 철학사)","고대 철학","고전 철학 (기원전 5~4세기)","아리스토텔레스 ..."] }
+  // 나머지 글자는 그대로 텍스트로 둡니다.
+  function buildDescLine(line, inlineToggles, links){
     const p = document.createElement('p');
-    if (!inlineToggles){ p.textContent = line; return p; }
+    if (!inlineToggles && !links){ p.textContent = line; return p; }
 
-    const keys = Object.keys(inlineToggles);
+    const toggleKeys = inlineToggles ? Object.keys(inlineToggles) : [];
+    const linkKeys = links ? Object.keys(links) : [];
+    const keys = [...toggleKeys, ...linkKeys];
+    if (keys.length === 0){ p.textContent = line; return p; }
+
     const pattern = new RegExp('(' + keys.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')', 'g');
     let lastIndex = 0;
     let match;
     while ((match = pattern.exec(line)) !== null){
       if (match.index > lastIndex) p.appendChild(document.createTextNode(line.slice(lastIndex, match.index)));
-      const sect = inlineToggles[match[0]];
-      const span = document.createElement('span');
-      span.className = 'inline-toggle';
-      span.textContent = match[0];
-      if (window.WorldData.overlayLayers['sect-' + sect]) span.classList.add('active');
-      span.addEventListener('click', e => {
-        e.stopPropagation();
-        toggleSectOverlay(sect, span);
-      });
-      p.appendChild(span);
+      const word = match[0];
+      if (links && Object.prototype.hasOwnProperty.call(links, word)){
+        const path = links[word];
+        const span = document.createElement('span');
+        span.className = 'inline-link';
+        span.textContent = word;
+        span.addEventListener('click', e => {
+          e.stopPropagation();
+          navigateTo([...path]);
+        });
+        p.appendChild(span);
+      } else {
+        const sect = inlineToggles[word];
+        const span = document.createElement('span');
+        span.className = 'inline-toggle';
+        span.textContent = word;
+        if (window.WorldData.overlayLayers['sect-' + sect]) span.classList.add('active');
+        span.addEventListener('click', e => {
+          e.stopPropagation();
+          toggleSectOverlay(sect, span);
+        });
+        p.appendChild(span);
+      }
       lastIndex = pattern.lastIndex;
     }
     if (lastIndex < line.length) p.appendChild(document.createTextNode(line.slice(lastIndex)));
