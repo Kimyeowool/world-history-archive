@@ -1261,8 +1261,8 @@
     // 로마 제국 — 트라야누스 황제 시기(서기 117년) 최대 영토
     rome: [
       'Italy','Spain','Portugal','France','United Kingdom','Belgium','Netherlands',
-      'Switzerland','Austria','Germany','Slovenia','Croatia','Bosnia and Herzegovina',
-      'Serbia','Montenegro','North Macedonia','Albania','Greece','Bulgaria','Romania',
+      'Switzerland','Austria','Germany','Slovenia','Croatia','Bosnia and Herz.',
+      'Serbia','Montenegro','Macedonia','Albania','Greece','Bulgaria','Romania',
       'Hungary','Turkey','Cyprus','Syria','Lebanon','Israel','Palestine','Jordan',
       'Egypt','Libya','Tunisia','Algeria','Morocco'
     ],
@@ -1273,7 +1273,7 @@
     ],
     // 동로마(비잔틴) 제국 — 유스티니아누스 1세 시기(555년경) 최대 영토
     byzantium: [
-      'Turkey','Greece','Bulgaria','Romania','Serbia','North Macedonia','Albania',
+      'Turkey','Greece','Bulgaria','Romania','Serbia','Macedonia','Albania',
       'Cyprus','Syria','Lebanon','Israel','Palestine','Jordan','Egypt','Libya',
       'Tunisia','Italy','Malta'
     ],
@@ -1284,8 +1284,8 @@
     ],
     // 오스만 제국 — 1683년(2차 빈 포위) 무렵 최대 영토
     ottoman: [
-      'Turkey','Greece','Bulgaria','Romania','Serbia','Bosnia and Herzegovina',
-      'Montenegro','North Macedonia','Albania','Kosovo','Hungary','Cyprus','Syria',
+      'Turkey','Greece','Bulgaria','Romania','Serbia','Bosnia and Herz.',
+      'Montenegro','Macedonia','Albania','Kosovo','Hungary','Cyprus','Syria',
       'Lebanon','Israel','Palestine','Jordan','Iraq','Saudi Arabia','Yemen','Egypt',
       'Libya','Tunisia','Algeria'
     ],
@@ -1307,7 +1307,7 @@
       'Iran','Iraq','Turkey','Syria','Lebanon','Israel','Palestine','Jordan','Egypt',
       'Libya','Saudi Arabia','Armenia','Georgia','Azerbaijan','Turkmenistan',
       'Uzbekistan','Tajikistan','Kyrgyzstan','Afghanistan','Pakistan','Greece',
-      'Bulgaria','North Macedonia','Bahrain','Kuwait','Oman','United Arab Emirates',
+      'Bulgaria','Macedonia','Bahrain','Kuwait','Oman','United Arab Emirates',
       'Cyprus'
     ],
     // 대영 제국 — 1920년대 최대 영토(자치령·식민지·보호령 포함)
@@ -1319,11 +1319,11 @@
       'Singapore','Brunei','Cyprus','Malta','Jordan','Iraq','Israel','Palestine',
       'Kuwait','Bahrain','Qatar','United Arab Emirates','Oman','Yemen','Jamaica',
       'Bahamas','Barbados','Trinidad and Tobago','Belize','Guyana','Fiji',
-      'Papua New Guinea','Solomon Islands','Vanuatu'
+      'Papua New Guinea','Solomon Is.','Vanuatu'
     ],
     // 마케도니아 제국(알렉산드로스 대왕) — 기원전 323년경 최대 영토
     macedon: [
-      'Greece','North Macedonia','Albania','Bulgaria','Turkey','Syria','Lebanon',
+      'Greece','Macedonia','Albania','Bulgaria','Turkey','Syria','Lebanon',
       'Israel','Palestine','Jordan','Egypt','Iraq','Iran','Armenia','Azerbaijan',
       'Turkmenistan','Uzbekistan','Tajikistan','Afghanistan','Pakistan','Kuwait'
     ]
@@ -1458,6 +1458,10 @@
     for (const key in layers){
       if (layers[key].countries.has(name)) return layers[key].color;
     }
+    // 남극은 위성 텍스처 자체가 이미 새하얀 빙하라 기본 투명 채우기로는
+    // 흰색 테두리가 흰 배경에 묻혀 안 보입니다 — 항상 옅은 황동색으로
+    // 채워서 다른 나라들처럼 영역과 국경이 또렷하게 보이도록 합니다.
+    if (name === 'Antarctica') return 'rgba(198,161,91,0.28)';
     return DEFAULT_COLOR;
   }
 
@@ -1515,10 +1519,11 @@
     'Iceland':'아이슬란드','Poland':'폴란드','Czechia':'체코','Slovakia':'슬로바키아','Hungary':'헝가리',
     'Romania':'루마니아','Bulgaria':'불가리아','Greece':'그리스','Croatia':'크로아티아','Serbia':'세르비아',
     'Bosnia and Herz.':'보스니아 헤르체고비나','Bosnia and Herzegovina':'보스니아 헤르체고비나','Albania':'알바니아',
-    'North Macedonia':'북마케도니아','Slovenia':'슬로베니아','Montenegro':'몬테네그로','Kosovo':'코소보',
+    'Slovenia':'슬로베니아','Montenegro':'몬테네그로','Kosovo':'코소보',
     'Ukraine':'우크라이나','Belarus':'벨라루스','Moldova':'몰도바','Russia':'러시아','Estonia':'에스토니아',
     'Latvia':'라트비아','Lithuania':'리투아니아','Georgia':'조지아','Armenia':'아르메니아','Azerbaijan':'아제르바이잔',
-    'Turkey':'튀르키예','Cyprus':'키프로스','Malta':'몰타','Luxembourg':'룩셈부르크',
+    'Turkey':'튀르키예','Cyprus':'(남)키프로스','N. Cyprus':'북키프로스','Malta':'몰타','Luxembourg':'룩셈부르크',
+    'North Macedonia':'북마케도니아','Macedonia':'북마케도니아',
     'China':'중국','Japan':'일본','South Korea':'대한민국','North Korea':'북한','Mongolia':'몽골',
     'Taiwan':'대만','Vietnam':'베트남','Thailand':'태국','Myanmar':'미얀마','Cambodia':'캄보디아',
     'Laos':'라오스','Malaysia':'말레이시아','Indonesia':'인도네시아','Philippines':'필리핀','Singapore':'싱가포르',
@@ -1539,9 +1544,13 @@
     'Liberia':'라이베리아','Sierra Leone':'시에라리온','Guinea':'기니','Guinea-Bissau':'기니비사우',
     'Senegal':'세네갈','Gambia':'감비아','Mali':'말리','Mauritania':'모리타니','Burkina Faso':'부르키나파소',
     'Angola':'앙골라','Zambia':'잠비아','Malawi':'말라위','Mozambique':'모잠비크','Zimbabwe':'짐바브웨',
-    'Botswana':'보츠와나','Namibia':'나미비아','South Africa':'남아프리카공화국','Lesotho':'레소토','Eswatini':'에스와티니',
+    'Botswana':'보츠와나','Namibia':'나미비아','South Africa':'남아프리카공화국','Lesotho':'레소토',
+    'Eswatini':'에스와티니','eSwatini':'에스와티니','Somaliland':'소말릴란드',
     'Madagascar':'마다가스카르','Comoros':'코모로',
-    'Australia':'호주','New Zealand':'뉴질랜드','Papua New Guinea':'파푸아뉴기니','Fiji':'피지'
+    'Australia':'호주','New Zealand':'뉴질랜드','Papua New Guinea':'파푸아뉴기니','Fiji':'피지',
+    'Bahamas':'바하마','Solomon Is.':'솔로몬 제도','Timor-Leste':'동티모르',
+    'New Caledonia':'누벨칼레도니','Vanuatu':'바누아투',
+    'Fr. S. Antarctic Lands':'프랑스령 남방 및 남극 지역','Antarctica':'남극'
   };
 
   /* =====================================================================
@@ -1560,7 +1569,7 @@
     'Iceland':'is','Poland':'pl','Czechia':'cz','Slovakia':'sk','Hungary':'hu',
     'Romania':'ro','Bulgaria':'bg','Greece':'gr','Croatia':'hr','Serbia':'rs',
     'Bosnia and Herz.':'ba','Bosnia and Herzegovina':'ba','Albania':'al',
-    'North Macedonia':'mk','Slovenia':'si','Montenegro':'me','Kosovo':'xk',
+    'North Macedonia':'mk','Macedonia':'mk','Slovenia':'si','Montenegro':'me','Kosovo':'xk',
     'Ukraine':'ua','Belarus':'by','Moldova':'md','Russia':'ru','Estonia':'ee',
     'Latvia':'lv','Lithuania':'lt','Georgia':'ge','Armenia':'am','Azerbaijan':'az',
     'Turkey':'tr','Cyprus':'cy','Malta':'mt','Luxembourg':'lu',
@@ -1584,9 +1593,21 @@
     'Liberia':'lr','Sierra Leone':'sl','Guinea':'gn','Guinea-Bissau':'gw',
     'Senegal':'sn','Gambia':'gm','Mali':'ml','Mauritania':'mr','Burkina Faso':'bf',
     'Angola':'ao','Zambia':'zm','Malawi':'mw','Mozambique':'mz','Zimbabwe':'zw',
-    'Botswana':'bw','Namibia':'na','South Africa':'za','Lesotho':'ls','Eswatini':'sz',
+    'Botswana':'bw','Namibia':'na','South Africa':'za','Lesotho':'ls','Eswatini':'sz','eSwatini':'sz',
     'Madagascar':'mg','Comoros':'km',
-    'Australia':'au','New Zealand':'nz','Papua New Guinea':'pg','Fiji':'fj'
+    'Australia':'au','New Zealand':'nz','Papua New Guinea':'pg','Fiji':'fj',
+    'Bahamas':'bs','Solomon Is.':'sb','Timor-Leste':'tl','New Caledonia':'nc','Vanuatu':'vu',
+    'Fr. S. Antarctic Lands':'tf'
+  };
+
+  /* =====================================================================
+     ISO 국가코드가 없는 미승인/특수 지역의 국기 — flagcdn 대신 개별 이미지 URL 사용
+     ===================================================================== */
+  const COUNTRY_FLAG_OVERRIDE = {
+    'Somaliland': 'https://upload.wikimedia.org/wikipedia/commons/4/4d/Flag_of_Somaliland.svg',
+    'N. Cyprus': 'https://upload.wikimedia.org/wikipedia/commons/1/1e/Flag_of_the_Turkish_Republic_of_Northern_Cyprus.svg',
+    // 남극은 특정 국가 소속이 아니므로 국기 대신 남극조약기를 사용합니다
+    'Antarctica': 'https://upload.wikimedia.org/wikipedia/commons/6/68/Flag_of_the_Antarctic_Treaty.svg'
   };
 
   /* =====================================================================
@@ -1617,7 +1638,8 @@
       tooltipNameEl.querySelector('.tt-ko').textContent = ko;
       tooltipNameEl.querySelector('.tt-en').textContent = name;
       const iso = COUNTRY_ISO2[name];
-      tooltipFlagEl.src = iso ? `https://flagcdn.com/w320/${iso}.png` : '';
+      const flagOverride = COUNTRY_FLAG_OVERRIDE[name];
+      tooltipFlagEl.src = flagOverride ? flagOverride : (iso ? `https://flagcdn.com/w320/${iso}.png` : '');
 
       tooltipNameTimer = setTimeout(() => tooltipNameEl.classList.add('visible'), 60);
       tooltipFlagTimer = setTimeout(() => tooltipFlagEl.classList.add('visible'), 60 + 200);
