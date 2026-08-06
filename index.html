@@ -1766,19 +1766,45 @@
     const COLS = 360;
     const latToRow = lat => Math.round(((90 - lat) / 180) * (h - 1));
     const rowToLat = row => 90 - (row / (h - 1)) * 180;
-    const rowStart = latToRow(-48); // 이보다 북쪽에는 빙하가 없다고 보고 여기서부터 남쪽으로 스캔
+    // 파타고니아의 만년설 같은 남극 대륙과 무관한 밝은 지점을 걸러내기 위해
+    // 남극 대륙이 실제로 시작될 수 있는 위도(-55도)보다 북쪽은 아예 스캔
+    // 대상에서 제외합니다.
+    const rowStart = latToRow(-55);
     const rowEnd = h - 1;
+    // 픽셀 하나만 밝다고 바로 '빙하'로 판정하지 않고, 그 아래로도 몇 줄
+    // 더 흰 픽셀이 이어지는지 확인해서 고립된 밝은 점(구름, 만년설 등)을
+    // 노이즈로 걸러냅니다.
+    const CONFIRM_ROWS = 8;
+    const CONFIRM_MIN = 6;
+    function isConfirmedIceStart(x, row){
+      if (!isIcePixel(x, row)) return false;
+      let count = 0;
+      for (let i = 0; i < CONFIRM_ROWS && row + i <= rowEnd; i++){
+        if (isIcePixel(x, row + i)) count++;
+      }
+      return count >= CONFIRM_MIN;
+    }
 
-    const ring = [];
+    const rawLats = [];
     for (let c = 0; c <= COLS; c++){
       const lon = c === COLS ? 180 : -180 + (c / COLS) * 360;
       const x = Math.min(w - 1, Math.round(((lon + 180) / 360) * (w - 1)));
       let boundaryRow = rowEnd;
       for (let row = rowStart; row <= rowEnd; row++){
-        if (isIcePixel(x, row)){ boundaryRow = row; break; }
+        if (isConfirmedIceStart(x, row)){ boundaryRow = row; break; }
       }
-      ring.push([lon, rowToLat(boundaryRow)]);
+      rawLats.push(rowToLat(boundaryRow));
     }
+
+    // 그래도 남는 이상치(주변보다 훨씬 북쪽으로 튀는 값)는 이웃 값들의
+    // 중앙값 기준으로 한 번 더 눌러줍니다 (3점 미디언 필터).
+    const smoothed = rawLats.map((lat, i) => {
+      const prev = rawLats[(i - 1 + rawLats.length) % rawLats.length];
+      const next = rawLats[(i + 1) % rawLats.length];
+      return [prev, lat, next].sort((a, b) => a - b)[1];
+    });
+
+    const ring = smoothed.map((lat, c) => [c === COLS ? 180 : -180 + (c / COLS) * 360, lat]);
     return ring;
   }
 
