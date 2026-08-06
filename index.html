@@ -2081,7 +2081,7 @@
   fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-10m.json')
     .then(res => res.json())
     .then(topo => {
-      const simplified = simplifyCoastlines(topojson.feature(topo, topo.objects.countries).features, 0.03);
+      const simplified = simplifyCoastlines(topojson.feature(topo, topo.objects.countries).features, 0.01);
       countryFeatures = replaceAntarcticaWithSimpleShape(unifyAntarctica(simplified));
       buildFlatMapBorders();
     })
@@ -2090,7 +2090,7 @@
   fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json')
     .then(res => res.json())
     .then(topo => {
-      const simplified = simplifyCoastlines(topojson.feature(topo, topo.objects.countries).features, 0.05);
+      const simplified = simplifyCoastlines(topojson.feature(topo, topo.objects.countries).features, 0.02);
       globeCountryFeatures = replaceAntarcticaWithSimpleShape(unifyAntarctica(simplified));
       if (worldGlobe) worldGlobe.polygonsData(globeCountryFeatures);
       startGlobeCulling();
