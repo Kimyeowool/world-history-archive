@@ -1926,15 +1926,31 @@
     const cosC = Math.sin(p1) * Math.sin(p2) + Math.cos(p1) * Math.cos(p2) * Math.cos(dLng);
     return Math.acos(Math.max(-1, Math.min(1, cosC))) * 180 / Math.PI;
   }
+  // 링의 실제 중심(무게중심)을 3D 단위벡터 평균으로 계산합니다. 배열 중간
+  // 지점 하나만 보면(예: 남극처럼 좁은 위도대에 몰린 조각들) 경도에 따라
+  // 대표점이 카메라 반대편에서도 여전히 지평선 90도 안쪽으로 계산되어
+  // 컬링이 거의 효과가 없었던 문제를 막습니다.
   function featureRepresentativePoint(f){
     if (f.__rep) return f.__rep;
     const geom = f.geometry;
     const ring = geom.type === 'Polygon' ? geom.coordinates[0] : geom.coordinates[0][0];
-    const pt = ring[Math.floor(ring.length / 2)] || ring[0];
-    f.__rep = { lat: pt[1], lng: pt[0] };
+    let sx = 0, sy = 0, sz = 0;
+    const step = Math.max(1, Math.floor(ring.length / 40)); // 점이 많아도 40개 정도만 표본
+    let n = 0;
+    for (let i = 0; i < ring.length; i += step){
+      const lon = ring[i][0] * Math.PI / 180, lat = ring[i][1] * Math.PI / 180;
+      sx += Math.cos(lat) * Math.cos(lon);
+      sy += Math.cos(lat) * Math.sin(lon);
+      sz += Math.sin(lat);
+      n++;
+    }
+    sx /= n; sy /= n; sz /= n;
+    const lat = Math.atan2(sz, Math.sqrt(sx * sx + sy * sy)) * 180 / Math.PI;
+    const lng = Math.atan2(sy, sx) * 180 / Math.PI;
+    f.__rep = { lat, lng };
     return f.__rep;
   }
-  const GLOBE_CULL_MARGIN_DEG = 112; // 90도(정확한 지평선)보다 여유를 둬서 팝인 방지
+  const GLOBE_CULL_MARGIN_DEG = 100; // 90도(정확한 지평선)보다 살짝 여유를 둬서 팝인 방지
   let globeCullTimer = null;
   function updateGlobeCulling(){
     if (!worldGlobe || !globeCountryFeatures.length) return;
