@@ -1679,12 +1679,19 @@
      ===================================================================== */
   const EARTH_TEXTURE_URL = 'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg';
 
+  // 원본 위성 텍스처가 4096×2048(약 1.4MB)로 꽤 커서, 매 프레임 GPU가
+  // 이 텍스처를 샘플링하는 비용 자체가 저사양 기기에서는 부담이 됩니다.
+  // 지구본/평면지도 모두 화면에 그 정도 해상도가 실제로 필요하지 않으므로
+  // 절반 크기(2048×1024)로 줄여서 사용합니다 — 픽셀 수가 1/4로 줄어
+  // GPU 대역폭 부담과 재구성(보정) 연산 시간이 함께 줄어듭니다.
+  const TEXTURE_SCALE = 0.5;
+
   function regradeImageToCanvas(img){
     const canvas = document.createElement('canvas');
-    canvas.width = img.width;
-    canvas.height = img.height;
+    canvas.width = Math.round(img.width * TEXTURE_SCALE);
+    canvas.height = Math.round(img.height * TEXTURE_SCALE);
     const ctx = canvas.getContext('2d');
-    ctx.drawImage(img, 0, 0);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const d = imageData.data;
     const GAMMA = 0.72;      // 크게 들어올려 전체적으로 밝고 연하게
