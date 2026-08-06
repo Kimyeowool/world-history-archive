@@ -61,7 +61,7 @@
 
   .frame{
     width:100%;
-    max-width:1180px;
+    max-width:1520px;
     padding:38px 24px 60px;
     position:relative;
     z-index:1;
@@ -580,6 +580,76 @@
     margin:10px 0 14px;
     flex-shrink:0;
   }
+  /* 명화 패널 — 목차/설명글이 왼쪽에 뜨므로 오른쪽에 액자처럼 띄웁니다.
+     이중 테두리로 미술관 액자 느낌을 주고, 카테고리 패널과 같은 타이밍으로
+     페이드인/아웃되며, 프레임 위에서 마우스 스크롤로 확대·축소할 수 있습니다. */
+  #artwork-panel{
+    position:absolute;
+    top:110px;
+    right:38px;
+    width:min(420px, 38%);
+    max-height:calc(min(85vh, 960px) - 200px);
+    z-index:19;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:12px;
+    opacity:0;
+    transform:translateY(-24px);
+    transition:opacity .6s ease, transform .6s ease;
+    pointer-events:none;
+  }
+  #artwork-panel.visible{
+    opacity:1;
+    transform:translateY(0);
+    pointer-events:auto;
+  }
+  #artwork-frame{
+    position:relative;
+    padding:16px;
+    max-width:100%;
+    max-height:100%;
+    background:linear-gradient(155deg, rgba(198,161,91,0.18), rgba(10,18,32,0.6));
+    border:1px solid var(--brass);
+    box-shadow:0 0 0 1px rgba(10,18,32,0.7) inset, 0 20px 50px rgba(0,0,0,0.65);
+    overflow:hidden;
+    cursor:zoom-in;
+  }
+  #artwork-frame::before{
+    content:"";
+    position:absolute;
+    inset:6px;
+    border:1px solid rgba(198,161,91,0.55);
+    pointer-events:none;
+  }
+  #artwork-image{
+    display:block;
+    max-width:100%;
+    max-height:min(60vh, 620px);
+    width:auto;
+    height:auto;
+    object-fit:contain;
+    opacity:0;
+    transform:scale(1);
+    transform-origin:center center;
+    transition:opacity .8s ease, transform .25s ease;
+    user-select:none;
+    -webkit-user-drag:none;
+  }
+  #artwork-image.loaded{ opacity:1; }
+  #artwork-caption{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
+    letter-spacing:0.08em;
+    color:var(--parchment-dim);
+    text-align:center;
+    text-shadow:0 1px 6px rgba(0,0,0,0.9);
+    margin:0;
+  }
+  @media (max-width:900px){
+    #artwork-panel{ display:none; } /* 좁은 화면에서는 목차 패널과 겹치므로 숨김 */
+  }
+
   .inline-toggle{
     cursor:pointer;
     text-decoration:underline;
@@ -857,6 +927,13 @@
     <ul id="category-list"></ul>
   </div>
 
+  <div id="artwork-panel">
+    <div id="artwork-frame">
+      <img id="artwork-image" src="" alt="">
+    </div>
+    <p id="artwork-caption"></p>
+  </div>
+
   <div id="data-loading-badge">GITHUB에서 콘텐츠 불러오는 중…</div>
   <footer>WORLD HISTORY ARCHIVE — MAIN INDEX</footer>
 </div>
@@ -1039,7 +1116,42 @@
       remainingChildNames.forEach((name, i) => listEl.appendChild(buildItemLi(name, i)));
     }
 
+    updateArtworkPanel(node);
     updateReligionOverlay();
+  }
+
+  // 명화 패널 — 노드에 artwork가 있으면 오른쪽에 액자로 띄우고, 없으면 숨깁니다.
+  // 같은 명화가 이미 떠 있으면 다시 페이드하지 않고, 다른 명화로 바뀔 때만
+  // 살짝 페이드아웃 후 새 이미지로 페이드인합니다.
+  let artworkZoom = 1;
+  let artworkCurrentFile = null;
+  function setArtworkZoom(z){
+    artworkZoom = Math.min(3, Math.max(1, z));
+    const img = document.getElementById('artwork-image');
+    if (img) img.style.transform = `scale(${artworkZoom})`;
+  }
+  function updateArtworkPanel(node){
+    const panel = document.getElementById('artwork-panel');
+    const img = document.getElementById('artwork-image');
+    const caption = document.getElementById('artwork-caption');
+    if (!panel || !img) return;
+
+    if (!node.artwork){
+      panel.classList.remove('visible');
+      artworkCurrentFile = null;
+      return;
+    }
+
+    panel.classList.add('visible');
+    if (node.artwork.file === artworkCurrentFile) return;
+    artworkCurrentFile = node.artwork.file;
+    img.classList.remove('loaded');
+    setArtworkZoom(1);
+    setTimeout(() => {
+      img.src = node.artwork.file;
+      img.alt = node.artwork.alt || '';
+      caption.textContent = node.artwork.caption || '';
+    }, 260);
   }
 
   // links/footnotes 값에서 경로(또는 각주 키)와 "몇 번째 등장을 링크할지"를 꺼냅니다.
@@ -1384,6 +1496,9 @@
   function closeCategory(){
     const panel = document.getElementById('category-panel');
     if (panel) panel.classList.remove('visible');
+    const artworkPanel = document.getElementById('artwork-panel');
+    if (artworkPanel) artworkPanel.classList.remove('visible');
+    artworkCurrentFile = null;
     Object.values(RELIGION_PAGE_LAYERS).forEach(p => clearOverlayLayer(p.layerId));
     Object.keys(SECT_COLORS).forEach(sect => clearOverlayLayer('sect-' + sect));
     setTimeout(() => {
@@ -1391,6 +1506,21 @@
       const listEl = document.getElementById('category-list');
       if (listEl) listEl.innerHTML = '';
     }, 450);
+  }
+
+  // 액자 위에서 마우스 스크롤로 명화를 확대·축소 (1배~3배)
+  const artworkFrameEl = document.getElementById('artwork-frame');
+  if (artworkFrameEl){
+    artworkFrameEl.addEventListener('wheel', e => {
+      const img = document.getElementById('artwork-image');
+      if (!img || !img.src) return;
+      e.preventDefault();
+      setArtworkZoom(artworkZoom + (e.deltaY < 0 ? 0.15 : -0.15));
+    }, { passive:false });
+  }
+  const artworkImageEl = document.getElementById('artwork-image');
+  if (artworkImageEl){
+    artworkImageEl.addEventListener('load', () => artworkImageEl.classList.add('loaded'));
   }
   window.openCategory = openCategory;
   window.goBackCategory = goBackCategory;
