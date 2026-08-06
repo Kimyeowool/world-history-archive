@@ -1854,10 +1854,22 @@
     const container = document.getElementById('globe-container');
     if(!container || typeof Globe === 'undefined') return;
 
+    // 마우스가 고주사율(예: 500Hz+)로 움직이면 mousemove 자체가 화면
+    // 주사율보다 훨씬 자주 발생해 매번 툴팁 DOM을 갱신하는 게 낭비였습니다.
+    // requestAnimationFrame 한 번당 최신 좌표 하나만 반영하도록 묶어줍니다.
+    let pendingMouseEvent = null;
+    let mouseRafScheduled = false;
     container.addEventListener('mousemove', e => {
-      lastMouseX = e.clientX;
-      lastMouseY = e.clientY;
-      moveCountryTooltip(e.clientX, e.clientY);
+      pendingMouseEvent = e;
+      if (mouseRafScheduled) return;
+      mouseRafScheduled = true;
+      requestAnimationFrame(() => {
+        mouseRafScheduled = false;
+        if (!pendingMouseEvent) return;
+        lastMouseX = pendingMouseEvent.clientX;
+        lastMouseY = pendingMouseEvent.clientY;
+        moveCountryTooltip(pendingMouseEvent.clientX, pendingMouseEvent.clientY);
+      });
     });
 
     // 성능 최적화: 안티앨리어싱 끄기, 픽셀비율 제한(고해상도 디스플레이에서
@@ -2021,6 +2033,13 @@
   }
   const GLOBE_CULL_MARGIN_DEG = 94; // 90도(정확한 지평선)보다 살짝만 여유를 둬서 팝인 방지
   let globeCullTimer = null;
+  let lastVisibleFeatureSet = null; // 직전에 실제로 넘긴 폴리곤 집합(참조 비교용)
+  // polygonsData()를 다시 넘길 때마다 three-globe가 보이는 폴리곤 전부의
+  // geometry(메시)를 새로 만듭니다 — 이걸 0.4초마다 무조건 실행하면
+  // "매끄러운 저프레임"이 아니라 "일정 주기로 뚝뚝 끊기는" 형태의 렉이
+  // 됩니다. 그래서 (1) 실제로 보이는 집합이 달라졌을 때만 갱신하고(대부분의
+  // 타이밍에서는 카메라가 조금만 돌아서 집합이 그대로이므로 재구성 자체를
+  // 건너뜀), (2) 회전 속도가 느려서 자주 확인할 필요가 없으니 주기도 늘렸습니다.
   function updateGlobeCulling(){
     if (!worldGlobe || !globeCountryFeatures.length) return;
     const globeEl = document.getElementById('globe-container');
@@ -2030,13 +2049,18 @@
       const rep = featureRepresentativePoint(f);
       return angularDistDeg(pov.lat, pov.lng, rep.lat, rep.lng) <= GLOBE_CULL_MARGIN_DEG;
     });
+    if (lastVisibleFeatureSet && lastVisibleFeatureSet.size === visible.length){
+      const unchanged = visible.every(f => lastVisibleFeatureSet.has(f));
+      if (unchanged) return; // 집합이 그대로면 굳이 다시 그리지 않음
+    }
+    lastVisibleFeatureSet = new Set(visible);
     worldGlobe.polygonsTransitionDuration(0);
     worldGlobe.polygonsData(visible);
   }
   function startGlobeCulling(){
     if (globeCullTimer) return;
     updateGlobeCulling();
-    globeCullTimer = setInterval(updateGlobeCulling, 400);
+    globeCullTimer = setInterval(updateGlobeCulling, 700);
   }
 
   // 국가 선택 토글 (지구본 · 평면지도 공용 상태)
