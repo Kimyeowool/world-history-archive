@@ -610,8 +610,32 @@
     transform:translateY(0);
     pointer-events:auto;
   }
+  /* 명화 우측 상단의 '해석' 토글 — 인물 주석(점/선/이름표)이 그림을 가릴 수
+     있으므로 기본은 꺼진 상태로 두고 버튼으로 켜고 끕니다. */
+  #artwork-annotate-toggle{
+    align-self:flex-end;
+    margin-bottom:6px;
+    padding:6px 14px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
+    letter-spacing:0.14em;
+    color:var(--parchment-dim);
+    background:rgba(4,8,14,0.65);
+    border:1px solid rgba(198,161,91,0.45);
+    cursor:pointer;
+    transition:background .2s ease, color .2s ease, border-color .2s ease;
+  }
+  #artwork-annotate-toggle:hover{ color:var(--parchment); border-color:var(--brass); }
+  #artwork-annotate-toggle.active{
+    background:rgba(198,161,91,0.22);
+    color:var(--parchment);
+    border-color:var(--brass);
+  }
   #artwork-frame{
     position:relative;
+    display:flex;
+    align-items:center;
+    justify-content:center;
     padding:16px;
     max-width:100%;
     max-height:100%;
@@ -622,6 +646,18 @@
   }
   #artwork-frame.zoomed{ cursor:grab; }
   #artwork-frame.zoomed.dragging{ cursor:grabbing; }
+  /* 확대/이동(팬)은 이미지와 주석 오버레이를 함께 담는 뷰포트에 걸어서,
+     주석 점들이 그림 위 같은 자리에 붙어 함께 확대/이동되도록 합니다. */
+  #artwork-viewport{
+    position:relative;
+    max-width:100%;
+    max-height:min(76vh, 780px);
+    transform:translate(0px, 0px) scale(1);
+    transform-origin:center center;
+    transition:opacity .8s ease, transform .25s ease;
+    opacity:0;
+  }
+  #artwork-viewport.loaded{ opacity:1; }
   /* 액자 테두리(이중선) — 하단 중앙에서 시작해 좌우로 뻗어나가 상단 중앙에서
      만나며 그려지고, 패널이 사라질 때는 같은 경로로 하단 중앙부터 지워지며
      상단 중앙에서 마지막으로 사라집니다 (stroke-dashoffset 1↔0 반전 활용). */
@@ -655,21 +691,79 @@
   }
   #artwork-image{
     display:block;
+    width:100%;
+    height:100%;
     max-width:100%;
     max-height:min(76vh, 780px);
-    width:auto;
-    height:auto;
     object-fit:contain;
-    opacity:0;
-    transform:translate(0px, 0px) scale(1);
-    transform-origin:center center;
-    transition:opacity .8s ease, transform .25s ease;
     user-select:none;
     -webkit-user-drag:none;
     touch-action:none;
   }
-  #artwork-image.loaded{ opacity:1; }
-  #artwork-image.dragging{ transition:opacity .8s ease; }
+  #artwork-viewport.dragging{ transition:opacity .8s ease; }
+
+  /* 인물 주석 — 그림과 정확히 같은 좌표계(뷰포트) 위에 겹쳐서, 확대/이동해도
+     같이 따라다닙니다. 점 → 선 → 이름표 순서로 단계별 클래스가 붙으며 켜지고,
+     꺼질 때는 세 단계가 함께 페이드아웃됩니다. */
+  #artwork-annotations{
+    position:absolute;
+    inset:0;
+    pointer-events:none;
+  }
+  .annot-point{
+    position:absolute;
+    transform:translate(-50%, -50%);
+  }
+  .annot-dot{
+    position:absolute;
+    left:0; top:0;
+    width:9px; height:9px;
+    margin:-4.5px 0 0 -4.5px;
+    border-radius:50%;
+    background:#ff5252;
+    box-shadow:0 0 7px 2px rgba(255,82,82,0.75);
+    transform:scale(0);
+    opacity:0;
+    transition:transform .3s cubic-bezier(.34,1.56,.64,1), opacity .25s ease;
+    transition-delay:var(--d, 0ms);
+  }
+  .annot-point.step1 .annot-dot{ transform:scale(1); opacity:1; }
+  .annot-leader{
+    position:absolute;
+    left:-0.75px;
+    width:1.5px;
+    height:34px;
+    background:linear-gradient(#ff5252, rgba(255,82,82,0.5));
+    transform:scaleY(0);
+    opacity:0;
+    transition:transform .3s ease, opacity .2s ease;
+    transition-delay:var(--d, 0ms);
+  }
+  .annot-point[data-dir="up"] .annot-leader{ top:-34px; transform-origin:bottom center; }
+  .annot-point[data-dir="down"] .annot-leader{ top:0; transform-origin:top center; }
+  .annot-point.step2 .annot-leader{ transform:scaleY(1); opacity:1; }
+  .annot-label{
+    position:absolute;
+    left:0;
+    white-space:nowrap;
+    padding:3px 9px;
+    background:#f0c419;
+    color:#241a00;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    font-weight:600;
+    letter-spacing:0.02em;
+    border-radius:2px;
+    box-shadow:0 3px 10px rgba(0,0,0,0.5);
+    opacity:0;
+    transition:transform .3s ease, opacity .3s ease;
+    transition-delay:var(--d, 0ms);
+  }
+  .annot-point[data-dir="up"] .annot-label{ top:-40px; transform:translate(-50%, -100%) scale(0.85); }
+  .annot-point[data-dir="down"] .annot-label{ top:40px; transform:translate(-50%, 0) scale(0.85); }
+  .annot-point.step3 .annot-label{ opacity:1; }
+  .annot-point[data-dir="up"].step3 .annot-label{ transform:translate(-50%, -100%) scale(1); }
+  .annot-point[data-dir="down"].step3 .annot-label{ transform:translate(-50%, 0) scale(1); }
   #artwork-caption{
     font-family:'IBM Plex Mono', monospace;
     font-size:10.5px;
@@ -960,6 +1054,7 @@
   </div>
 
   <div id="artwork-panel">
+    <button id="artwork-annotate-toggle" type="button">해석</button>
     <div id="artwork-frame">
       <svg class="artwork-frame-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
         <path class="frame-outer" d="M50,99 L99,99 L99,1 L50,1" pathLength="1"/>
@@ -967,7 +1062,10 @@
         <path class="frame-inner" d="M50,94 L94,94 L94,6 L50,6" pathLength="1"/>
         <path class="frame-inner" d="M50,94 L6,94 L6,6 L50,6" pathLength="1"/>
       </svg>
-      <img id="artwork-image" src="" alt="">
+      <div id="artwork-viewport">
+        <img id="artwork-image" src="" alt="">
+        <div id="artwork-annotations"></div>
+      </div>
     </div>
     <p id="artwork-caption"></p>
   </div>
@@ -1166,19 +1264,20 @@
   let artworkZoom = 1;
   let artworkPanX = 0, artworkPanY = 0;
   let artworkCurrentFile = null;
+  let artworkPendingAnnotations = null;
 
-  function clampArtworkPan(img){
-    const maxX = (img.offsetWidth * (artworkZoom - 1)) / 2;
-    const maxY = (img.offsetHeight * (artworkZoom - 1)) / 2;
+  function clampArtworkPan(viewport){
+    const maxX = (viewport.offsetWidth * (artworkZoom - 1)) / 2;
+    const maxY = (viewport.offsetHeight * (artworkZoom - 1)) / 2;
     artworkPanX = Math.max(-maxX, Math.min(maxX, artworkPanX));
     artworkPanY = Math.max(-maxY, Math.min(maxY, artworkPanY));
   }
 
   function applyArtworkTransform(){
-    const img = document.getElementById('artwork-image');
-    if (!img) return;
-    clampArtworkPan(img);
-    img.style.transform = `translate(${artworkPanX}px, ${artworkPanY}px) scale(${artworkZoom})`;
+    const viewport = document.getElementById('artwork-viewport');
+    if (!viewport) return;
+    clampArtworkPan(viewport);
+    viewport.style.transform = `translate(${artworkPanX}px, ${artworkPanY}px) scale(${artworkZoom})`;
     const frame = document.getElementById('artwork-frame');
     if (frame) frame.classList.toggle('zoomed', artworkZoom > 1);
   }
@@ -1189,8 +1288,50 @@
     applyArtworkTransform();
   }
 
+  // 인물 주석 — 점(step1) → 선(step2) → 이름표(step3) 순서로 켜지고,
+  // 끌 때는 세 단계가 함께 페이드아웃됩니다. 기본은 꺼진 상태입니다.
+  let annotationsOn = false;
+  function renderArtworkAnnotations(points){
+    const container = document.getElementById('artwork-annotations');
+    const toggleBtn = document.getElementById('artwork-annotate-toggle');
+    if (!container || !toggleBtn) return;
+    container.innerHTML = '';
+    annotationsOn = false;
+    toggleBtn.classList.remove('active');
+    if (!points || !points.length){
+      toggleBtn.style.display = 'none';
+      return;
+    }
+    toggleBtn.style.display = '';
+    points.forEach((p, i) => {
+      const el = document.createElement('div');
+      el.className = 'annot-point';
+      el.dataset.dir = p.y < 50 ? 'down' : 'up';
+      el.style.left = p.x + '%';
+      el.style.top = p.y + '%';
+      el.style.setProperty('--d', Math.min(i * 12, 260) + 'ms');
+      el.innerHTML = '<span class="annot-dot"></span><span class="annot-leader"></span><span class="annot-label"></span>';
+      el.querySelector('.annot-label').textContent = p.name;
+      container.appendChild(el);
+    });
+  }
+  function setArtworkAnnotations(on){
+    annotationsOn = on;
+    const points = document.querySelectorAll('.annot-point');
+    const toggleBtn = document.getElementById('artwork-annotate-toggle');
+    if (toggleBtn) toggleBtn.classList.toggle('active', on);
+    if (on){
+      points.forEach(p => p.classList.add('step1'));
+      setTimeout(() => points.forEach(p => p.classList.add('step2')), 260);
+      setTimeout(() => points.forEach(p => p.classList.add('step3')), 520);
+    } else {
+      points.forEach(p => p.classList.remove('step1', 'step2', 'step3'));
+    }
+  }
+
   function updateArtworkPanel(node){
     const panel = document.getElementById('artwork-panel');
+    const viewport = document.getElementById('artwork-viewport');
     const img = document.getElementById('artwork-image');
     const caption = document.getElementById('artwork-caption');
     if (!panel || !img) return;
@@ -1198,14 +1339,17 @@
     if (!node.artwork){
       panel.classList.remove('visible');
       artworkCurrentFile = null;
+      renderArtworkAnnotations(null);
       return;
     }
 
     panel.classList.add('visible');
     if (node.artwork.file === artworkCurrentFile) return;
     artworkCurrentFile = node.artwork.file;
-    img.classList.remove('loaded');
+    viewport.classList.remove('loaded');
     setArtworkZoom(1);
+    renderArtworkAnnotations(null);
+    artworkPendingAnnotations = node.artwork.annotations || null;
     setTimeout(() => {
       img.src = node.artwork.file;
       img.alt = node.artwork.alt || '';
@@ -1558,6 +1702,7 @@
     const artworkPanel = document.getElementById('artwork-panel');
     if (artworkPanel) artworkPanel.classList.remove('visible');
     artworkCurrentFile = null;
+    setArtworkAnnotations(false);
     Object.values(RELIGION_PAGE_LAYERS).forEach(p => clearOverlayLayer(p.layerId));
     Object.keys(SECT_COLORS).forEach(sect => clearOverlayLayer('sect-' + sect));
     setTimeout(() => {
@@ -1578,8 +1723,15 @@
     }, { passive:false });
   }
   const artworkImageEl = document.getElementById('artwork-image');
-  if (artworkImageEl){
-    artworkImageEl.addEventListener('load', () => artworkImageEl.classList.add('loaded'));
+  const artworkViewportEl = document.getElementById('artwork-viewport');
+  if (artworkImageEl && artworkViewportEl){
+    artworkImageEl.addEventListener('load', () => {
+      if (artworkImageEl.naturalWidth && artworkImageEl.naturalHeight){
+        artworkViewportEl.style.aspectRatio = artworkImageEl.naturalWidth + ' / ' + artworkImageEl.naturalHeight;
+      }
+      artworkViewportEl.classList.add('loaded');
+      renderArtworkAnnotations(artworkPendingAnnotations);
+    });
 
     // 확대된 상태에서 드래그로 동서남북 이동 (팬)
     let artworkDragging = false;
@@ -1592,7 +1744,7 @@
       artworkDragStartY = e.clientY;
       artworkPanStartX = artworkPanX;
       artworkPanStartY = artworkPanY;
-      artworkImageEl.classList.add('dragging');
+      artworkViewportEl.classList.add('dragging');
       if (artworkFrameEl) artworkFrameEl.classList.add('dragging');
       try { artworkImageEl.setPointerCapture(e.pointerId); } catch (err) {}
     });
@@ -1605,10 +1757,14 @@
     ['pointerup', 'pointercancel'].forEach(evt => {
       artworkImageEl.addEventListener(evt, () => {
         artworkDragging = false;
-        artworkImageEl.classList.remove('dragging');
+        artworkViewportEl.classList.remove('dragging');
         if (artworkFrameEl) artworkFrameEl.classList.remove('dragging');
       });
     });
+  }
+  const artworkAnnotateToggleEl = document.getElementById('artwork-annotate-toggle');
+  if (artworkAnnotateToggleEl){
+    artworkAnnotateToggleEl.addEventListener('click', () => setArtworkAnnotations(!annotationsOn));
   }
   window.openCategory = openCategory;
   window.goBackCategory = goBackCategory;
