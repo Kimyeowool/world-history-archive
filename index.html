@@ -1510,6 +1510,7 @@
     'United States of America':'미국','Canada':'캐나다','Mexico':'멕시코','Brazil':'브라질','Argentina':'아르헨티나',
     'Chile':'칠레','Peru':'페루','Colombia':'콜롬비아','Venezuela':'베네수엘라','Ecuador':'에콰도르',
     'Bolivia':'볼리비아','Paraguay':'파라과이','Uruguay':'우루과이','Guyana':'가이아나','Suriname':'수리남',
+    'Falkland Is.':'포클랜드 제도',
     'Panama':'파나마','Costa Rica':'코스타리카','Nicaragua':'니카라과','Honduras':'온두라스','El Salvador':'엘살바도르',
     'Guatemala':'과테말라','Belize':'벨리즈','Cuba':'쿠바','Jamaica':'자메이카','Haiti':'아이티',
     'Dominican Rep.':'도미니카공화국','Dominican Republic':'도미니카공화국',
@@ -1559,7 +1560,7 @@
   const COUNTRY_ISO2 = {
     'United States of America':'us','Canada':'ca','Mexico':'mx','Brazil':'br','Argentina':'ar',
     'Chile':'cl','Peru':'pe','Colombia':'co','Venezuela':'ve','Ecuador':'ec',
-    'Bolivia':'bo','Paraguay':'py','Uruguay':'uy','Guyana':'gy','Suriname':'sr',
+    'Bolivia':'bo','Paraguay':'py','Uruguay':'uy','Guyana':'gy','Suriname':'sr','Falkland Is.':'fk',
     'Panama':'pa','Costa Rica':'cr','Nicaragua':'ni','Honduras':'hn','El Salvador':'sv',
     'Guatemala':'gt','Belize':'bz','Cuba':'cu','Jamaica':'jm','Haiti':'ht',
     'Dominican Rep.':'do','Dominican Republic':'do',
@@ -1666,8 +1667,8 @@
      지구본 (globe.gl) — 실제 위성 텍스처 + 국가 경계(폴리곤) + 클릭 색상
      ===================================================================== */
   let worldGlobe = null;
-  let countryFeatures = [];       // 평면지도용 (50m, 더 정밀)
-  let globeCountryFeatures = [];  // 지구본용 (110m, 더 가벼움 — 성능 최적화)
+  let countryFeatures = [];       // 평면지도용 (10m, 가장 정밀)
+  let globeCountryFeatures = [];  // 지구본용 (50m, 3D 회전 성능과 디테일의 절충)
   let lastMouseX = 0, lastMouseY = 0;
 
   function capColorFor(name){
@@ -1862,23 +1863,25 @@
     return result;
   }
 
-  // 국경 폴리곤 데이터 로드 — 지구본은 110m(가벼움, 부드러운 프레임),
-  // 평면지도는 50m(더 정밀한 국경)를 따로 불러와 각각 최적의 성능/디테일을 확보합니다.
-  fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json')
+  // 국경 폴리곤 데이터 로드 — 지구본은 50m(고해상도이면서도 3D 회전 성능은
+  // 유지되는 선), 평면지도는 10m(가장 정교한 해상도)를 따로 불러와 각각
+  // 최적의 성능/디테일을 확보합니다. (기존 110m/50m 대비 해상도를 한 단계씩
+  // 올려서 확대했을 때 국경선이 삐뚤빼뚤하지 않고 매끄럽게 보이도록 함)
+  fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-10m.json')
     .then(res => res.json())
     .then(topo => {
       countryFeatures = explodeAntarcticaRings(unifyAntarctica(topojson.feature(topo, topo.objects.countries).features));
       buildFlatMapBorders();
     })
-    .catch(err => console.error('국경 데이터(50m) 로드 실패:', err));
+    .catch(err => console.error('국경 데이터(10m) 로드 실패:', err));
 
-  fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json')
+  fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json')
     .then(res => res.json())
     .then(topo => {
       globeCountryFeatures = explodeAntarcticaRings(unifyAntarctica(topojson.feature(topo, topo.objects.countries).features));
       if (worldGlobe) worldGlobe.polygonsData(globeCountryFeatures);
     })
-    .catch(err => console.error('국경 데이터(110m) 로드 실패:', err));
+    .catch(err => console.error('국경 데이터(50m) 로드 실패:', err));
 
   // 국가 선택 토글 (지구본 · 평면지도 공용 상태)
   function toggleCountry(name){
