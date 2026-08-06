@@ -585,14 +585,16 @@
      페이드인/아웃되며, 프레임 위에서 마우스 스크롤로 확대·축소할 수 있습니다. */
   #artwork-panel{
     position:absolute;
-    top:110px;
-    right:38px;
-    width:min(420px, 38%);
-    max-height:calc(min(85vh, 960px) - 200px);
+    top:100px;
+    right:30px;
+    width:min(680px, 50%);
+    height:calc(min(85vh, 960px) - 160px);
+    max-height:calc(min(85vh, 960px) - 160px);
     z-index:19;
     display:flex;
     flex-direction:column;
     align-items:center;
+    justify-content:center;
     gap:12px;
     opacity:0;
     transform:translateY(-24px);
@@ -615,6 +617,8 @@
     overflow:hidden;
     cursor:zoom-in;
   }
+  #artwork-frame.zoomed{ cursor:grab; }
+  #artwork-frame.zoomed.dragging{ cursor:grabbing; }
   #artwork-frame::before{
     content:"";
     position:absolute;
@@ -625,18 +629,20 @@
   #artwork-image{
     display:block;
     max-width:100%;
-    max-height:min(60vh, 620px);
+    max-height:min(76vh, 780px);
     width:auto;
     height:auto;
     object-fit:contain;
     opacity:0;
-    transform:scale(1);
+    transform:translate(0px, 0px) scale(1);
     transform-origin:center center;
     transition:opacity .8s ease, transform .25s ease;
     user-select:none;
     -webkit-user-drag:none;
+    touch-action:none;
   }
   #artwork-image.loaded{ opacity:1; }
+  #artwork-image.dragging{ transition:opacity .8s ease; }
   #artwork-caption{
     font-family:'IBM Plex Mono', monospace;
     font-size:10.5px;
@@ -1123,13 +1129,34 @@
   // 명화 패널 — 노드에 artwork가 있으면 오른쪽에 액자로 띄우고, 없으면 숨깁니다.
   // 같은 명화가 이미 떠 있으면 다시 페이드하지 않고, 다른 명화로 바뀔 때만
   // 살짝 페이드아웃 후 새 이미지로 페이드인합니다.
+  // 확대(휠 스크롤) 후에는 드래그로 동서남북 이동(팬)이 가능하며, 이미지가
+  // 확대된 배율만큼만 움직일 수 있도록 팬 범위를 제한합니다.
   let artworkZoom = 1;
+  let artworkPanX = 0, artworkPanY = 0;
   let artworkCurrentFile = null;
+
+  function clampArtworkPan(img){
+    const maxX = (img.offsetWidth * (artworkZoom - 1)) / 2;
+    const maxY = (img.offsetHeight * (artworkZoom - 1)) / 2;
+    artworkPanX = Math.max(-maxX, Math.min(maxX, artworkPanX));
+    artworkPanY = Math.max(-maxY, Math.min(maxY, artworkPanY));
+  }
+
+  function applyArtworkTransform(){
+    const img = document.getElementById('artwork-image');
+    if (!img) return;
+    clampArtworkPan(img);
+    img.style.transform = `translate(${artworkPanX}px, ${artworkPanY}px) scale(${artworkZoom})`;
+    const frame = document.getElementById('artwork-frame');
+    if (frame) frame.classList.toggle('zoomed', artworkZoom > 1);
+  }
+
   function setArtworkZoom(z){
     artworkZoom = Math.min(3, Math.max(1, z));
-    const img = document.getElementById('artwork-image');
-    if (img) img.style.transform = `scale(${artworkZoom})`;
+    if (artworkZoom === 1){ artworkPanX = 0; artworkPanY = 0; }
+    applyArtworkTransform();
   }
+
   function updateArtworkPanel(node){
     const panel = document.getElementById('artwork-panel');
     const img = document.getElementById('artwork-image');
@@ -1521,6 +1548,35 @@
   const artworkImageEl = document.getElementById('artwork-image');
   if (artworkImageEl){
     artworkImageEl.addEventListener('load', () => artworkImageEl.classList.add('loaded'));
+
+    // 확대된 상태에서 드래그로 동서남북 이동 (팬)
+    let artworkDragging = false;
+    let artworkDragStartX = 0, artworkDragStartY = 0;
+    let artworkPanStartX = 0, artworkPanStartY = 0;
+    artworkImageEl.addEventListener('pointerdown', e => {
+      if (artworkZoom <= 1) return;
+      artworkDragging = true;
+      artworkDragStartX = e.clientX;
+      artworkDragStartY = e.clientY;
+      artworkPanStartX = artworkPanX;
+      artworkPanStartY = artworkPanY;
+      artworkImageEl.classList.add('dragging');
+      if (artworkFrameEl) artworkFrameEl.classList.add('dragging');
+      try { artworkImageEl.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+    artworkImageEl.addEventListener('pointermove', e => {
+      if (!artworkDragging) return;
+      artworkPanX = artworkPanStartX + (e.clientX - artworkDragStartX);
+      artworkPanY = artworkPanStartY + (e.clientY - artworkDragStartY);
+      applyArtworkTransform();
+    });
+    ['pointerup', 'pointercancel'].forEach(evt => {
+      artworkImageEl.addEventListener(evt, () => {
+        artworkDragging = false;
+        artworkImageEl.classList.remove('dragging');
+        if (artworkFrameEl) artworkFrameEl.classList.remove('dragging');
+      });
+    });
   }
   window.openCategory = openCategory;
   window.goBackCategory = goBackCategory;
