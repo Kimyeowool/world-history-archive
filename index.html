@@ -1679,19 +1679,12 @@
      ===================================================================== */
   const EARTH_TEXTURE_URL = 'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg';
 
-  // 원본 위성 텍스처가 4096×2048(약 1.4MB)로 꽤 커서, 매 프레임 GPU가
-  // 이 텍스처를 샘플링하는 비용 자체가 저사양 기기에서는 부담이 됩니다.
-  // 지구본/평면지도 모두 화면에 그 정도 해상도가 실제로 필요하지 않으므로
-  // 절반 크기(2048×1024)로 줄여서 사용합니다 — 픽셀 수가 1/4로 줄어
-  // GPU 대역폭 부담과 재구성(보정) 연산 시간이 함께 줄어듭니다.
-  const TEXTURE_SCALE = 0.5;
-
   function regradeImageToCanvas(img){
     const canvas = document.createElement('canvas');
-    canvas.width = Math.round(img.width * TEXTURE_SCALE);
-    canvas.height = Math.round(img.height * TEXTURE_SCALE);
+    canvas.width = img.width;
+    canvas.height = img.height;
     const ctx = canvas.getContext('2d');
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0);
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const d = imageData.data;
     const GAMMA = 0.72;      // 크게 들어올려 전체적으로 밝고 연하게
@@ -1977,13 +1970,119 @@
     return rest;
   }
 
+  /* =====================================================================
+     해안선 간략화 — 나라와 나라가 맞닿는 국경(육상 국경)은 원본 그대로
+     정교하게 유지하고, 바다와 맞닿는 해안선(만·곶 같은 잔 굴곡)만 매끄러운
+     선으로 단순화해서 렌더링 부담을 줄입니다.
+     1) 모든 나라의 모든 점을 좌표별로 세어, 2개 이상의 서로 다른 나라에
+        걸쳐 나오는 점 = 육상 국경(공유 지점)으로 표시해 보존 대상으로 삼고,
+     2) 각 링을 돌면서 "보존 지점 ~ 보존 지점" 사이, 즉 오직 한 나라만
+        지나는 해안선 구간에만 더글라스-포이커 알고리즘으로 단순화를 적용합니다.
+     ===================================================================== */
+  function coordKey(pt){ return pt[0].toFixed(5) + ',' + pt[1].toFixed(5); }
+
+  function collectRings(feature){
+    const geom = feature.geometry;
+    if (!geom) return [];
+    if (geom.type === 'Polygon') return geom.coordinates;
+    if (geom.type === 'MultiPolygon') return geom.coordinates.flat();
+    return [];
+  }
+
+  function buildSharedPointSet(features){
+    const namesByPoint = new Map();
+    features.forEach(f => {
+      const name = f.properties.name;
+      collectRings(f).forEach(ring => {
+        ring.forEach(pt => {
+          const k = coordKey(pt);
+          let names = namesByPoint.get(k);
+          if (!names){ names = new Set(); namesByPoint.set(k, names); }
+          names.add(name);
+        });
+      });
+    });
+    const shared = new Set();
+    namesByPoint.forEach((names, k) => { if (names.size >= 2) shared.add(k); });
+    return shared;
+  }
+
+  function perpendicularDistance(pt, a, b){
+    const [x, y] = pt, [x1, y1] = a, [x2, y2] = b;
+    const dx = x2 - x1, dy = y2 - y1;
+    if (dx === 0 && dy === 0) return Math.hypot(x - x1, y - y1);
+    const t = ((x - x1) * dx + (y - y1) * dy) / (dx * dx + dy * dy);
+    const px = x1 + t * dx, py = y1 + t * dy;
+    return Math.hypot(x - px, y - py);
+  }
+
+  function douglasPeucker(points, epsilon){
+    if (points.length < 3) return points;
+    let maxDist = 0, index = 0;
+    const first = points[0], last = points[points.length - 1];
+    for (let i = 1; i < points.length - 1; i++){
+      const d = perpendicularDistance(points[i], first, last);
+      if (d > maxDist){ maxDist = d; index = i; }
+    }
+    if (maxDist > epsilon){
+      const left = douglasPeucker(points.slice(0, index + 1), epsilon);
+      const right = douglasPeucker(points.slice(index), epsilon);
+      return left.slice(0, -1).concat(right);
+    }
+    return [first, last];
+  }
+
+  // 링 하나를 "보존 지점" 기준으로 여러 구간으로 나눠, 보존 지점이 아닌
+  // 연속 구간(=순수 해안선)에만 단순화를 적용하고 이어붙입니다.
+  function simplifyCoastlineRing(ring, sharedSet, epsilon){
+    if (ring.length < 5) return ring;
+    const protectedFlags = ring.map(pt => sharedSet.has(coordKey(pt)));
+    const result = [];
+    let i = 0;
+    while (i < ring.length){
+      if (protectedFlags[i]){
+        result.push(ring[i]);
+        i++;
+        continue;
+      }
+      let j = i;
+      while (j < ring.length && !protectedFlags[j]) j++;
+      const run = [];
+      if (result.length) run.push(result[result.length - 1]);
+      for (let k = i; k < j; k++) run.push(ring[k]);
+      if (j < ring.length) run.push(ring[j]);
+      const simplified = run.length >= 3 ? douglasPeucker(run, epsilon) : run;
+      const startIdx = result.length ? 1 : 0;
+      const endIdx = j < ring.length ? simplified.length - 1 : simplified.length;
+      for (let k = startIdx; k < endIdx; k++) result.push(simplified[k]);
+      i = j;
+    }
+    if (result.length < 4) return ring; // 너무 작아지면 원본 유지
+    return result;
+  }
+
+  function simplifyCoastlines(features, epsilon){
+    const sharedSet = buildSharedPointSet(features);
+    features.forEach(f => {
+      const geom = f.geometry;
+      if (!geom) return;
+      if (geom.type === 'Polygon'){
+        geom.coordinates = geom.coordinates.map(ring => simplifyCoastlineRing(ring, sharedSet, epsilon));
+      } else if (geom.type === 'MultiPolygon'){
+        geom.coordinates = geom.coordinates.map(poly => poly.map(ring => simplifyCoastlineRing(ring, sharedSet, epsilon)));
+      }
+    });
+    return features;
+  }
+
   // 국경 폴리곤 데이터 로드 — 평면지도는 10m(가장 정교한 해상도), 지구본은
   // 50m(3D 회전 성능과 디테일의 절충)를 씁니다. 남극은 위에서 만든 단순화된
   // 도형 하나로 항상 통일해서 씁니다.
   fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-10m.json')
     .then(res => res.json())
     .then(topo => {
-      countryFeatures = replaceAntarcticaWithSimpleShape(unifyAntarctica(topojson.feature(topo, topo.objects.countries).features));
+      const simplified = simplifyCoastlines(topojson.feature(topo, topo.objects.countries).features, 0.03);
+      countryFeatures = replaceAntarcticaWithSimpleShape(unifyAntarctica(simplified));
       buildFlatMapBorders();
     })
     .catch(err => console.error('국경 데이터(10m) 로드 실패:', err));
@@ -1991,7 +2090,8 @@
   fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json')
     .then(res => res.json())
     .then(topo => {
-      globeCountryFeatures = replaceAntarcticaWithSimpleShape(unifyAntarctica(topojson.feature(topo, topo.objects.countries).features));
+      const simplified = simplifyCoastlines(topojson.feature(topo, topo.objects.countries).features, 0.05);
+      globeCountryFeatures = replaceAntarcticaWithSimpleShape(unifyAntarctica(simplified));
       if (worldGlobe) worldGlobe.polygonsData(globeCountryFeatures);
       startGlobeCulling();
     })
