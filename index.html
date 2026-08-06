@@ -2075,13 +2075,54 @@
     return features;
   }
 
+  // 외곽 링(첫 번째 링) 기준 대략적인 면적 — 위도에 따른 경도 압축을
+  // cos(평균위도)로 보정해 서로 다른 위도의 섬을 공정하게 비교합니다.
+  function ringArea(ring){
+    if (!ring || ring.length < 3) return 0;
+    let latSum = 0;
+    for (const pt of ring) latSum += pt[1];
+    const cosLat = Math.cos((latSum / ring.length) * Math.PI / 180);
+    let area = 0;
+    for (let i = 0; i < ring.length - 1; i++){
+      const [lon1, lat1] = ring[i], [lon2, lat2] = ring[i + 1];
+      area += (lon1 * cosLat) * lat2 - (lon2 * cosLat) * lat1;
+    }
+    return Math.abs(area / 2);
+  }
+
+  // 나라마다 "본토가 뚜렷한 나라"(비중 작은 부속 섬은 정리)와
+  // "섬나라/군도 나라"(여러 섬 자체가 영토 본질이라 최대한 유지)를 나눠서,
+  // 전체 면적 대비 비중이 낮은 조각만 골라 제거합니다. 단, 다른 나라와
+  // 국경을 맞대는 조각(육지 국경의 일부)은 크기와 무관하게 항상 유지합니다.
+  function filterSmallIslands(features){
+    const sharedSet = buildSharedPointSet(features);
+    const touchesBorder = poly => poly.some(ring => ring.some(pt => sharedSet.has(coordKey(pt))));
+    features.forEach(f => {
+      const geom = f.geometry;
+      if (!geom || geom.type !== 'MultiPolygon') return;
+      const polys = geom.coordinates;
+      if (polys.length <= 1) return;
+      const areas = polys.map(poly => ringArea(poly[0]));
+      const total = areas.reduce((a, b) => a + b, 0);
+      const maxArea = Math.max(...areas);
+      if (total === 0 || maxArea === 0) return;
+      const isIslandNation = (maxArea / total) < 0.9;
+      const threshold = isIslandNation ? 0.003 : 0.008;
+      const kept = polys.filter((poly, i) =>
+        areas[i] === maxArea || (areas[i] / total) >= threshold || touchesBorder(poly));
+      geom.coordinates = kept.length ? kept : [polys[areas.indexOf(maxArea)]];
+    });
+    return features;
+  }
+
   // 국경 폴리곤 데이터 로드 — 평면지도는 10m(가장 정교한 해상도), 지구본은
   // 50m(3D 회전 성능과 디테일의 절충)를 씁니다. 남극은 위에서 만든 단순화된
   // 도형 하나로 항상 통일해서 씁니다.
   fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-10m.json')
     .then(res => res.json())
     .then(topo => {
-      const simplified = simplifyCoastlines(topojson.feature(topo, topo.objects.countries).features, 0.01);
+      const raw = filterSmallIslands(topojson.feature(topo, topo.objects.countries).features);
+      const simplified = simplifyCoastlines(raw, 0.1);
       countryFeatures = replaceAntarcticaWithSimpleShape(unifyAntarctica(simplified));
       buildFlatMapBorders();
     })
@@ -2090,7 +2131,8 @@
   fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json')
     .then(res => res.json())
     .then(topo => {
-      const simplified = simplifyCoastlines(topojson.feature(topo, topo.objects.countries).features, 0.02);
+      const raw = filterSmallIslands(topojson.feature(topo, topo.objects.countries).features);
+      const simplified = simplifyCoastlines(raw, 0.2);
       globeCountryFeatures = replaceAntarcticaWithSimpleShape(unifyAntarctica(simplified));
       if (worldGlobe) worldGlobe.polygonsData(globeCountryFeatures);
       startGlobeCulling();
