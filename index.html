@@ -1668,7 +1668,7 @@
      ===================================================================== */
   let worldGlobe = null;
   let countryFeatures = [];       // 평면지도용 (10m, 가장 정밀)
-  let globeCountryFeatures = [];  // 지구본용 (50m, 3D 회전 성능과 디테일의 절충)
+  let globeCountryFeatures = [];  // 지구본용 (110m — 남극 삼각분할 버그 때문에 유지, 위 주석 참고)
   let lastMouseX = 0, lastMouseY = 0;
 
   function capColorFor(name){
@@ -1863,10 +1863,11 @@
     return result;
   }
 
-  // 국경 폴리곤 데이터 로드 — 지구본은 50m(고해상도이면서도 3D 회전 성능은
-  // 유지되는 선), 평면지도는 10m(가장 정교한 해상도)를 따로 불러와 각각
-  // 최적의 성능/디테일을 확보합니다. (기존 110m/50m 대비 해상도를 한 단계씩
-  // 올려서 확대했을 때 국경선이 삐뚤빼뚤하지 않고 매끄럽게 보이도록 함)
+  // 국경 폴리곤 데이터 로드 — 평면지도는 10m(가장 정교한 해상도)로 올렸지만,
+  // 지구본은 110m를 그대로 씁니다. 50m로 올렸더니 남극 해안선이 세밀해지며
+  // 조각(구멍/빙붕 경계) 수가 100개 이상으로 늘어났고, 그중 일부가
+  // three-globe의 삼각분할 과정에서 뒤집혀 지구본 전체를 뒤덮는 문제가
+  // 있어 지구본은 안전한 110m로 유지합니다.
   fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-10m.json')
     .then(res => res.json())
     .then(topo => {
@@ -1875,13 +1876,13 @@
     })
     .catch(err => console.error('국경 데이터(10m) 로드 실패:', err));
 
-  fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json')
+  fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json')
     .then(res => res.json())
     .then(topo => {
       globeCountryFeatures = explodeAntarcticaRings(unifyAntarctica(topojson.feature(topo, topo.objects.countries).features));
       if (worldGlobe) worldGlobe.polygonsData(globeCountryFeatures);
     })
-    .catch(err => console.error('국경 데이터(50m) 로드 실패:', err));
+    .catch(err => console.error('국경 데이터(110m) 로드 실패:', err));
 
   // 국가 선택 토글 (지구본 · 평면지도 공용 상태)
   function toggleCountry(name){
