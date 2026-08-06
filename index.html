@@ -1663,8 +1663,8 @@
      지구본 (globe.gl) — 실제 위성 텍스처 + 국가 경계(폴리곤) + 클릭 색상
      ===================================================================== */
   let worldGlobe = null;
-  let countryFeatures = [];       // 평면지도용 (10m, 가장 정밀)
-  let globeCountryFeatures = [];  // 지구본용 (50m, 3D 회전 성능과 디테일의 절충)
+  let countryFeatures = [];       // 평면지도용 (50m, 더 정밀)
+  let globeCountryFeatures = [];  // 지구본용 (110m, 더 가벼움 — 성능 최적화)
   let lastMouseX = 0, lastMouseY = 0;
 
   function capColorFor(name){
@@ -1970,174 +1970,25 @@
     return rest;
   }
 
-  /* =====================================================================
-     해안선 간략화 — 나라와 나라가 맞닿는 국경(육상 국경)은 원본 그대로
-     정교하게 유지하고, 바다와 맞닿는 해안선(만·곶 같은 잔 굴곡)만 매끄러운
-     선으로 단순화해서 렌더링 부담을 줄입니다.
-     1) 모든 나라의 모든 점을 좌표별로 세어, 2개 이상의 서로 다른 나라에
-        걸쳐 나오는 점 = 육상 국경(공유 지점)으로 표시해 보존 대상으로 삼고,
-     2) 각 링을 돌면서 "보존 지점 ~ 보존 지점" 사이, 즉 오직 한 나라만
-        지나는 해안선 구간에만 더글라스-포이커 알고리즘으로 단순화를 적용합니다.
-     ===================================================================== */
-  function coordKey(pt){ return pt[0].toFixed(5) + ',' + pt[1].toFixed(5); }
-
-  function collectRings(feature){
-    const geom = feature.geometry;
-    if (!geom) return [];
-    if (geom.type === 'Polygon') return geom.coordinates;
-    if (geom.type === 'MultiPolygon') return geom.coordinates.flat();
-    return [];
-  }
-
-  function buildSharedPointSet(features){
-    const namesByPoint = new Map();
-    features.forEach(f => {
-      const name = f.properties.name;
-      collectRings(f).forEach(ring => {
-        ring.forEach(pt => {
-          const k = coordKey(pt);
-          let names = namesByPoint.get(k);
-          if (!names){ names = new Set(); namesByPoint.set(k, names); }
-          names.add(name);
-        });
-      });
-    });
-    const shared = new Set();
-    namesByPoint.forEach((names, k) => { if (names.size >= 2) shared.add(k); });
-    return shared;
-  }
-
-  function perpendicularDistance(pt, a, b){
-    const [x, y] = pt, [x1, y1] = a, [x2, y2] = b;
-    const dx = x2 - x1, dy = y2 - y1;
-    if (dx === 0 && dy === 0) return Math.hypot(x - x1, y - y1);
-    const t = ((x - x1) * dx + (y - y1) * dy) / (dx * dx + dy * dy);
-    const px = x1 + t * dx, py = y1 + t * dy;
-    return Math.hypot(x - px, y - py);
-  }
-
-  function douglasPeucker(points, epsilon){
-    if (points.length < 3) return points;
-    let maxDist = 0, index = 0;
-    const first = points[0], last = points[points.length - 1];
-    for (let i = 1; i < points.length - 1; i++){
-      const d = perpendicularDistance(points[i], first, last);
-      if (d > maxDist){ maxDist = d; index = i; }
-    }
-    if (maxDist > epsilon){
-      const left = douglasPeucker(points.slice(0, index + 1), epsilon);
-      const right = douglasPeucker(points.slice(index), epsilon);
-      return left.slice(0, -1).concat(right);
-    }
-    return [first, last];
-  }
-
-  // 링 하나를 "보존 지점" 기준으로 여러 구간으로 나눠, 보존 지점이 아닌
-  // 연속 구간(=순수 해안선)에만 단순화를 적용하고 이어붙입니다.
-  function simplifyCoastlineRing(ring, sharedSet, epsilon){
-    if (ring.length < 5) return ring;
-    const protectedFlags = ring.map(pt => sharedSet.has(coordKey(pt)));
-    const result = [];
-    let i = 0;
-    while (i < ring.length){
-      if (protectedFlags[i]){
-        result.push(ring[i]);
-        i++;
-        continue;
-      }
-      let j = i;
-      while (j < ring.length && !protectedFlags[j]) j++;
-      const run = [];
-      if (result.length) run.push(result[result.length - 1]);
-      for (let k = i; k < j; k++) run.push(ring[k]);
-      if (j < ring.length) run.push(ring[j]);
-      const simplified = run.length >= 3 ? douglasPeucker(run, epsilon) : run;
-      const startIdx = result.length ? 1 : 0;
-      const endIdx = j < ring.length ? simplified.length - 1 : simplified.length;
-      for (let k = startIdx; k < endIdx; k++) result.push(simplified[k]);
-      i = j;
-    }
-    if (result.length < 4) return ring; // 너무 작아지면 원본 유지
-    return result;
-  }
-
-  function simplifyCoastlines(features, epsilon){
-    const sharedSet = buildSharedPointSet(features);
-    features.forEach(f => {
-      const geom = f.geometry;
-      if (!geom) return;
-      if (geom.type === 'Polygon'){
-        geom.coordinates = geom.coordinates.map(ring => simplifyCoastlineRing(ring, sharedSet, epsilon));
-      } else if (geom.type === 'MultiPolygon'){
-        geom.coordinates = geom.coordinates.map(poly => poly.map(ring => simplifyCoastlineRing(ring, sharedSet, epsilon)));
-      }
-    });
-    return features;
-  }
-
-  // 외곽 링(첫 번째 링) 기준 대략적인 면적 — 위도에 따른 경도 압축을
-  // cos(평균위도)로 보정해 서로 다른 위도의 섬을 공정하게 비교합니다.
-  function ringArea(ring){
-    if (!ring || ring.length < 3) return 0;
-    let latSum = 0;
-    for (const pt of ring) latSum += pt[1];
-    const cosLat = Math.cos((latSum / ring.length) * Math.PI / 180);
-    let area = 0;
-    for (let i = 0; i < ring.length - 1; i++){
-      const [lon1, lat1] = ring[i], [lon2, lat2] = ring[i + 1];
-      area += (lon1 * cosLat) * lat2 - (lon2 * cosLat) * lat1;
-    }
-    return Math.abs(area / 2);
-  }
-
-  // 나라마다 "본토가 뚜렷한 나라"(비중 작은 부속 섬은 정리)와
-  // "섬나라/군도 나라"(여러 섬 자체가 영토 본질이라 최대한 유지)를 나눠서,
-  // 전체 면적 대비 비중이 낮은 조각만 골라 제거합니다. 단, 다른 나라와
-  // 국경을 맞대는 조각(육지 국경의 일부)은 크기와 무관하게 항상 유지합니다.
-  function filterSmallIslands(features){
-    const sharedSet = buildSharedPointSet(features);
-    const touchesBorder = poly => poly.some(ring => ring.some(pt => sharedSet.has(coordKey(pt))));
-    features.forEach(f => {
-      const geom = f.geometry;
-      if (!geom || geom.type !== 'MultiPolygon') return;
-      const polys = geom.coordinates;
-      if (polys.length <= 1) return;
-      const areas = polys.map(poly => ringArea(poly[0]));
-      const total = areas.reduce((a, b) => a + b, 0);
-      const maxArea = Math.max(...areas);
-      if (total === 0 || maxArea === 0) return;
-      const isIslandNation = (maxArea / total) < 0.9;
-      const threshold = isIslandNation ? 0.003 : 0.008;
-      const kept = polys.filter((poly, i) =>
-        areas[i] === maxArea || (areas[i] / total) >= threshold || touchesBorder(poly));
-      geom.coordinates = kept.length ? kept : [polys[areas.indexOf(maxArea)]];
-    });
-    return features;
-  }
-
-  // 국경 폴리곤 데이터 로드 — 평면지도는 10m(가장 정교한 해상도), 지구본은
-  // 50m(3D 회전 성능과 디테일의 절충)를 씁니다. 남극은 위에서 만든 단순화된
-  // 도형 하나로 항상 통일해서 씁니다.
-  fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-10m.json')
-    .then(res => res.json())
-    .then(topo => {
-      const raw = filterSmallIslands(topojson.feature(topo, topo.objects.countries).features);
-      const simplified = simplifyCoastlines(raw, 0.1);
-      countryFeatures = replaceAntarcticaWithSimpleShape(unifyAntarctica(simplified));
-      buildFlatMapBorders();
-    })
-    .catch(err => console.error('국경 데이터(10m) 로드 실패:', err));
-
+  // 국경 폴리곤 데이터 로드 — 지구본은 110m(가벼움, 부드러운 프레임),
+  // 평면지도는 50m(더 정밀한 국경)를 따로 불러와 각각 최적의 성능/디테일을
+  // 확보합니다. 남극은 위에서 만든 단순화된 도형 하나로 항상 통일해서 씁니다.
   fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json')
     .then(res => res.json())
     .then(topo => {
-      const raw = filterSmallIslands(topojson.feature(topo, topo.objects.countries).features);
-      const simplified = simplifyCoastlines(raw, 0.2);
-      globeCountryFeatures = replaceAntarcticaWithSimpleShape(unifyAntarctica(simplified));
+      countryFeatures = replaceAntarcticaWithSimpleShape(unifyAntarctica(topojson.feature(topo, topo.objects.countries).features));
+      buildFlatMapBorders();
+    })
+    .catch(err => console.error('국경 데이터(50m) 로드 실패:', err));
+
+  fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json')
+    .then(res => res.json())
+    .then(topo => {
+      globeCountryFeatures = replaceAntarcticaWithSimpleShape(unifyAntarctica(topojson.feature(topo, topo.objects.countries).features));
       if (worldGlobe) worldGlobe.polygonsData(globeCountryFeatures);
       startGlobeCulling();
     })
-    .catch(err => console.error('국경 데이터(50m) 로드 실패:', err));
+    .catch(err => console.error('국경 데이터(110m) 로드 실패:', err));
 
   /* =====================================================================
      지구본 가시 영역만 렌더링 — three.js는 매 프레임(회전 중 계속) 폴리곤을
