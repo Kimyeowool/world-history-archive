@@ -1668,7 +1668,7 @@
      ===================================================================== */
   let worldGlobe = null;
   let countryFeatures = [];       // 평면지도용 (10m, 가장 정밀)
-  let globeCountryFeatures = [];  // 지구본용 (110m — 남극 삼각분할 버그 때문에 유지, 위 주석 참고)
+  let globeCountryFeatures = [];  // 지구본용 (50m, 3D 회전 성능과 디테일의 절충)
   let lastMouseX = 0, lastMouseY = 0;
 
   function capColorFor(name){
@@ -1840,8 +1840,25 @@
     return features;
   }
 
+  // 링(경도,위도 좌표 배열)의 부호 있는 면적 — 양수면 반시계, 음수면 시계 방향
+  function ringSignedArea(ring){
+    let s = 0;
+    for (let i = 0; i < ring.length - 1; i++){
+      s += ring[i][0] * ring[i + 1][1] - ring[i + 1][0] * ring[i][1];
+    }
+    return s / 2;
+  }
+
   // 남극 조각의 모든 링(외곽선+구멍)을 각각 독립된 Polygon으로 분리합니다.
   // (구멍으로 취급되던 부분도 그냥 하나의 solid 도형이 되어 색이 채워집니다)
+  //
+  // 원래 하나의 폴리곤 안에서는 외곽선과 구멍이 서로 반대 방향으로 감겨
+  // 있는데(정상), 이렇게 쪼개서 각자 독립된 도형으로 만들면 원래 '구멍'이던
+  // 링들은 감긴 방향이 나머지 대다수(외곽선들)와 반대로 남습니다. three-globe가
+  // 그 방향을 보고 안/밖을 판단하기 때문에, 방향이 반대인 조각 하나만 있어도
+  // 그 조각이 뒤집혀서(도형 안이 아니라 바깥 전체가) 칠해져 지구본 전체가
+  // 뒤덮이는 문제가 생깁니다. 그래서 모든 조각의 감긴 방향을 다수결로 통일시켜
+  // 전부 같은 '바깥쪽' 방향이 되도록 강제합니다.
   function explodeAntarcticaRings(features){
     const result = [];
     features.forEach(f => {
@@ -1853,21 +1870,32 @@
           result.push({
             type: 'Feature',
             properties: { name: 'Antarctica' },
-            geometry: { type: 'Polygon', coordinates: [ring] }
+            geometry: { type: 'Polygon', coordinates: [ring] },
+            __signedArea: ringSignedArea(ring)
           });
         });
       } else {
         result.push(f);
       }
     });
+    // 남극 조각들 중 다수가 감긴 방향(부호)을 기준으로 삼고, 소수인 반대
+    // 방향 조각들은 좌표 순서를 뒤집어 방향을 맞춰줍니다.
+    const antPieces = result.filter(f => f.__signedArea !== undefined);
+    const positiveCount = antPieces.filter(f => f.__signedArea > 0).length;
+    const majoritySign = positiveCount > antPieces.length / 2 ? 1 : -1;
+    antPieces.forEach(f => {
+      const sign = f.__signedArea > 0 ? 1 : -1;
+      if (sign !== majoritySign) f.geometry.coordinates[0].reverse();
+      delete f.__signedArea;
+    });
     return result;
   }
 
-  // 국경 폴리곤 데이터 로드 — 평면지도는 10m(가장 정교한 해상도)로 올렸지만,
-  // 지구본은 110m를 그대로 씁니다. 50m로 올렸더니 남극 해안선이 세밀해지며
-  // 조각(구멍/빙붕 경계) 수가 100개 이상으로 늘어났고, 그중 일부가
-  // three-globe의 삼각분할 과정에서 뒤집혀 지구본 전체를 뒤덮는 문제가
-  // 있어 지구본은 안전한 110m로 유지합니다.
+  // 국경 폴리곤 데이터 로드 — 평면지도는 10m(가장 정교한 해상도), 지구본은
+  // 50m(3D 회전 성능과 디테일의 절충)를 씁니다. explodeAntarcticaRings의
+  // 감김 방향 통일 수정 덕분에 남극 조각이 많아져도(50m 기준 100개 이상)
+  // 더 이상 지구본이 뒤집혀 뒤덮이지 않습니다 — 그 결과 남극 색칠 영역의
+  // 경계가 실제 위성 텍스처의 빙하 경계와 훨씬 가깝게 맞습니다.
   fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-10m.json')
     .then(res => res.json())
     .then(topo => {
@@ -1876,13 +1904,13 @@
     })
     .catch(err => console.error('국경 데이터(10m) 로드 실패:', err));
 
-  fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json')
+  fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json')
     .then(res => res.json())
     .then(topo => {
       globeCountryFeatures = explodeAntarcticaRings(unifyAntarctica(topojson.feature(topo, topo.objects.countries).features));
       if (worldGlobe) worldGlobe.polygonsData(globeCountryFeatures);
     })
-    .catch(err => console.error('국경 데이터(110m) 로드 실패:', err));
+    .catch(err => console.error('국경 데이터(50m) 로드 실패:', err));
 
   // 국가 선택 토글 (지구본 · 평면지도 공용 상태)
   function toggleCountry(name){
