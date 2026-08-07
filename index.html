@@ -731,7 +731,7 @@
   .annot-leader-outline{
     fill:none;
     stroke:#f7f2e2;
-    stroke-width:3.8;
+    stroke-width:3;
     stroke-linecap:round;
     vector-effect:non-scaling-stroke;
     stroke-dasharray:1;
@@ -743,7 +743,7 @@
   .annot-leader-path{
     fill:none;
     stroke:#000;
-    stroke-width:2;
+    stroke-width:1.6;
     stroke-linecap:round;
     vector-effect:non-scaling-stroke;
     stroke-dasharray:1;
@@ -1398,10 +1398,17 @@
     pack(autoItems.filter(a => a.dir === 'up'), TOP_BASE_PCT, ROW_STEP_PCT);
     pack(autoItems.filter(a => a.dir === 'down'), BOTTOM_BASE_PCT, -ROW_STEP_PCT);
 
+    const vh = viewport.clientHeight;
     artworkAnnotationEls.forEach(item => {
       item.labelEl.style.left = item.labelX + '%';
       item.labelEl.style.top = item.labelY + '%';
-      const d = `M ${item.x} ${item.y} L ${item.labelX} ${item.labelY}`;
+      // 선이 라벨 "중앙"이 아니라 인물 쪽을 향한 모서리에서 끝나야
+      // 참고 도판처럼 상자 끝에 깃발처럼 딱 붙어 보입니다.
+      const halfWPct = (item.labelEl.offsetWidth / 2) / vw * 100;
+      const halfHPct = (item.labelEl.offsetHeight / 2) / vh * 100;
+      const cornerX = item.labelX + (item.x < item.labelX ? -halfWPct : halfWPct);
+      const cornerY = item.labelY + (item.y < item.labelY ? -halfHPct : halfHPct);
+      const d = `M ${item.x} ${item.y} L ${cornerX} ${cornerY}`;
       item.pathEl.setAttribute('d', d);
       item.outlineEl.setAttribute('d', d);
     });
