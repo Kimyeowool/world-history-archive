@@ -1303,8 +1303,15 @@
     svg.setAttribute('preserveAspectRatio', 'none');
     container.appendChild(svg);
 
+    // 인물이 그림 위쪽/아래쪽 절반에 고르게 있다는 보장이 없으므로(예: 아테네
+    // 학당은 대부분 인물이 화면 아래쪽 2/3에 몰려있음), 화면 중앙(50%)이
+    // 아니라 실제 y좌표들의 중앙값을 기준으로 절반씩 나눠서 천장 여백과
+    // 바닥 여백에 고르게 분산시킵니다.
+    const sortedY = points.map(p => p.y).slice().sort((a, b) => a - b);
+    const medianY = sortedY[Math.floor(sortedY.length / 2)];
+
     points.forEach(p => {
-      const dir = p.y < 50 ? 'up' : 'down'; // 위쪽 인물은 천장 여백으로, 아래쪽 인물은 바닥 여백으로
+      const dir = p.y <= medianY ? 'up' : 'down';
 
       const pathEl = document.createElementNS(svgNS, 'path');
       pathEl.setAttribute('class', 'annot-leader-path');
