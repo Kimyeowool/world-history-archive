@@ -1358,10 +1358,11 @@
     requestAnimationFrame(layoutArtworkAnnotations);
   }
 
-  // preset(labelX/labelY 고정 좌표)이 있는 라벨은 그대로 두고, 없는
-  // 라벨만 그림 상단(천장 근처)/하단(바닥 근처) 여백으로 몰아넣어 좌우로
-  // 겹치면 다음 줄로 내려 쌓습니다(shelf packing). 리더선은 항상
-  // 점 → 최종 라벨 위치로 다시 그립니다.
+  // preset(labelX/labelY 고정 좌표)이 있는 라벨은 데이터에 있는 좌표를
+  // 그대로 씁니다(참고 도판을 그대로 재현). preset이 없는 라벨만 그림
+  // 상단(천장 근처)/하단(바닥 근처) 여백으로 몰아넣어 좌우로 겹치면 다음
+  // 줄로 내려 쌓습니다(shelf packing). 리더선은 항상 점 → 최종 라벨
+  // 위치로 다시 그립니다.
   function layoutArtworkAnnotations(){
     const viewport = document.getElementById('artwork-viewport');
     if (!viewport || !artworkAnnotationEls.length) return;
@@ -1394,8 +1395,6 @@
     pack(autoItems.filter(a => a.dir === 'up'), TOP_BASE_PCT, ROW_STEP_PCT);
     pack(autoItems.filter(a => a.dir === 'down'), BOTTOM_BASE_PCT, -ROW_STEP_PCT);
 
-    resolveArtworkLabelCollisions(vw, viewport.clientHeight);
-
     artworkAnnotationEls.forEach(item => {
       item.labelEl.style.left = item.labelX + '%';
       item.labelEl.style.top = item.labelY + '%';
@@ -1403,65 +1402,6 @@
       item.pathEl.setAttribute('d', d);
       item.outlineEl.setAttribute('d', d);
     });
-  }
-
-  // 참고 도판에서 그대로 가져온 고정 좌표(preset)는 우리 그림의 가로세로
-  // 비율이 원본과 달라 그대로 옮기면 라벨끼리 살짝 겹칠 수 있습니다.
-  // 실제 렌더된 라벨 크기로 겹침을 검사해서, 겹치는 쌍만 서로 최소한으로
-  // (겹친 만큼의 절반씩) 밀어내 완전히 겹치지 않게 만듭니다.
-  //
-  // 좌표는 라벨의 "중심점"이므로, 화면 가장자리 근처에 중심이 있어도
-  // 글자가 긴 라벨은 절반이 뷰포트 밖으로 나가 액자의 overflow:hidden에
-  // 잘려 보일 수 있습니다. 그래서 클램프는 고정된 3~97% 대신 각 라벨
-  // 자신의 실제 너비/높이를 반영해, 라벨 전체가 항상 뷰포트 안에 온전히
-  // 들어오도록 계산합니다.
-  function clampArtworkLabel(item, vw, vh){
-    const EDGE_PAD = 4;
-    const halfWPct = ((item.labelEl.offsetWidth / 2) + EDGE_PAD) / vw * 100;
-    const halfHPct = ((item.labelEl.offsetHeight / 2) + EDGE_PAD) / vh * 100;
-    item.labelX = Math.max(halfWPct, Math.min(100 - halfWPct, item.labelX));
-    item.labelY = Math.max(halfHPct, Math.min(100 - halfHPct, item.labelY));
-  }
-
-  function resolveArtworkLabelCollisions(vw, vh){
-    if (!vw || !vh) return;
-    const GAP = 4;
-    // preset 좌표는 겹치는 상대가 전혀 없어도 가장자리를 벗어날 수 있으므로,
-    // 충돌 검사 전에 모든 라벨을 한 번씩 먼저 뷰포트 안으로 클램프합니다.
-    artworkAnnotationEls.forEach(item => clampArtworkLabel(item, vw, vh));
-    for (let iter = 0; iter < 12; iter++){
-      let moved = false;
-      for (let i = 0; i < artworkAnnotationEls.length; i++){
-        for (let j = i + 1; j < artworkAnnotationEls.length; j++){
-          const A = artworkAnnotationEls[i], B = artworkAnnotationEls[j];
-          const aw = A.labelEl.offsetWidth, ah = A.labelEl.offsetHeight;
-          const bw = B.labelEl.offsetWidth, bh = B.labelEl.offsetHeight;
-          const ax = (A.labelX / 100) * vw, ay = (A.labelY / 100) * vh;
-          const bx = (B.labelX / 100) * vw, by = (B.labelY / 100) * vh;
-          const overlapX = (aw + bw) / 2 + GAP - Math.abs(ax - bx);
-          const overlapY = (ah + bh) / 2 + GAP - Math.abs(ay - by);
-          if (overlapX > 0 && overlapY > 0){
-            moved = true;
-            if (overlapX < overlapY){
-              const shift = overlapX / 2 + 0.3;
-              const dir = ax < bx ? -1 : 1;
-              A.labelX += (dir * shift / vw) * 100;
-              B.labelX -= (dir * shift / vw) * 100;
-            } else {
-              const shift = overlapY / 2 + 0.3;
-              const dir = ay < by ? -1 : 1;
-              A.labelY += (dir * shift / vh) * 100;
-              B.labelY -= (dir * shift / vh) * 100;
-            }
-            // 경계에 닿아도 밀어내는 힘이 사라지지 않도록, 매 반복마다
-            // 바로 클램프해서 다음 반복이 이미 막힌 쪽 대신 다른 방향/상대를 밀게 합니다.
-            clampArtworkLabel(A, vw, vh);
-            clampArtworkLabel(B, vw, vh);
-          }
-        }
-      }
-      if (!moved) break;
-    }
   }
   window.addEventListener('resize', () => {
     if (artworkAnnotationEls.length) layoutArtworkAnnotations();
