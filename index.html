@@ -641,10 +641,13 @@
     max-height:100%;
     background:linear-gradient(155deg, rgba(198,161,91,0.18), rgba(10,18,32,0.6));
     box-shadow:0 20px 50px rgba(0,0,0,0.65);
-    overflow:hidden;
+    /* 소개 UI(선+이름창)는 그림 범위를 벗어나도 그대로 둡니다. 확대해서
+       볼 때만(팬/줌 중) 이미지가 액자 밖으로 새어나가지 않도록 그때만
+       잘라냅니다. */
+    overflow:visible;
     cursor:zoom-in;
   }
-  #artwork-frame.zoomed{ cursor:grab; }
+  #artwork-frame.zoomed{ overflow:hidden; cursor:grab; }
   #artwork-frame.zoomed.dragging{ cursor:grabbing; }
   /* 확대/이동(팬)은 이미지와 주석 오버레이를 함께 담는 뷰포트에 걸어서,
      주석 점들이 그림 위 같은 자리에 붙어 함께 확대/이동되도록 합니다. */
