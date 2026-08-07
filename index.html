@@ -703,67 +703,67 @@
   #artwork-viewport.dragging{ transition:opacity .8s ease; }
 
   /* 인물 주석 — 그림과 정확히 같은 좌표계(뷰포트) 위에 겹쳐서, 확대/이동해도
-     같이 따라다닙니다. 점 → 선 → 이름표 순서로 단계별 클래스가 붙으며 켜지고,
-     꺼질 때는 세 단계가 함께 페이드아웃됩니다. */
+     같이 따라다닙니다. 점 → 선 → 이름표 순서로 단계별로 켜지고, 꺼질 때는
+     세 단계가 함께 페이드아웃됩니다. 이름표는 배경 상자 없이 흰 글자만
+     두고, 검은 아웃라인(text-shadow)으로 그림 위에서도 잘 읽히게 합니다.
+     라벨끼리 겹치지 않도록 JS(layoutArtworkAnnotations)가 그림 상단/하단의
+     여백(천장·바닥 쪽)으로 각 라벨을 밀어내고, 리더선은 인물 점에서 그
+     최종 라벨 위치까지 실제 선으로 이어줍니다. */
   #artwork-annotations{
     position:absolute;
     inset:0;
     pointer-events:none;
   }
-  .annot-point{
+  .artwork-leader-svg{
     position:absolute;
-    transform:translate(-50%, -50%);
+    inset:0;
+    width:100%;
+    height:100%;
+    overflow:visible;
   }
   .annot-dot{
     position:absolute;
-    left:0; top:0;
-    width:9px; height:9px;
-    margin:-4.5px 0 0 -4.5px;
+    width:8px; height:8px;
+    margin:-4px 0 0 -4px;
     border-radius:50%;
-    background:#ff5252;
-    box-shadow:0 0 7px 2px rgba(255,82,82,0.75);
+    background:#000;
+    box-shadow:0 0 0 1.5px rgba(255,255,255,0.65), 0 0 5px rgba(0,0,0,0.7);
     transform:scale(0);
     opacity:0;
     transition:transform .3s cubic-bezier(.34,1.56,.64,1), opacity .25s ease;
     transition-delay:var(--d, 0ms);
   }
-  .annot-point.step1 .annot-dot{ transform:scale(1); opacity:1; }
-  .annot-leader{
-    position:absolute;
-    left:-0.75px;
-    width:1.5px;
-    height:34px;
-    background:linear-gradient(#ff5252, rgba(255,82,82,0.5));
-    transform:scaleY(0);
-    opacity:0;
-    transition:transform .3s ease, opacity .2s ease;
+  .annot-dot.step1{ transform:scale(1); opacity:1; }
+  .annot-leader-path{
+    fill:none;
+    stroke:#000;
+    stroke-width:1.2;
+    stroke-linecap:round;
+    vector-effect:non-scaling-stroke;
+    stroke-dasharray:1;
+    stroke-dashoffset:1;
+    filter:drop-shadow(0 0 1.5px rgba(255,255,255,0.55));
+    transition:stroke-dashoffset .3s ease;
     transition-delay:var(--d, 0ms);
   }
-  .annot-point[data-dir="up"] .annot-leader{ top:-34px; transform-origin:bottom center; }
-  .annot-point[data-dir="down"] .annot-leader{ top:0; transform-origin:top center; }
-  .annot-point.step2 .annot-leader{ transform:scaleY(1); opacity:1; }
+  .annot-leader-path.step2{ stroke-dashoffset:0; }
   .annot-label{
     position:absolute;
-    left:0;
+    transform:translate(-50%, -50%) scale(0.85);
     white-space:nowrap;
-    padding:3px 9px;
-    background:#f0c419;
-    color:#241a00;
-    font-family:'IBM Plex Mono', monospace;
-    font-size:11px;
+    font-family:'Spectral', serif;
+    font-size:13px;
     font-weight:600;
-    letter-spacing:0.02em;
-    border-radius:2px;
-    box-shadow:0 3px 10px rgba(0,0,0,0.5);
+    color:#fff;
+    text-shadow:
+      -1.5px -1.5px 2px #000, 1.5px -1.5px 2px #000,
+      -1.5px 1.5px 2px #000, 1.5px 1.5px 2px #000,
+      0 0 8px rgba(0,0,0,0.95);
     opacity:0;
-    transition:transform .3s ease, opacity .3s ease;
+    transition:opacity .3s ease, transform .3s ease;
     transition-delay:var(--d, 0ms);
   }
-  .annot-point[data-dir="up"] .annot-label{ top:-40px; transform:translate(-50%, -100%) scale(0.85); }
-  .annot-point[data-dir="down"] .annot-label{ top:40px; transform:translate(-50%, 0) scale(0.85); }
-  .annot-point.step3 .annot-label{ opacity:1; }
-  .annot-point[data-dir="up"].step3 .annot-label{ transform:translate(-50%, -100%) scale(1); }
-  .annot-point[data-dir="down"].step3 .annot-label{ transform:translate(-50%, 0) scale(1); }
+  .annot-label.step3{ opacity:1; transform:translate(-50%, -50%) scale(1); }
   #artwork-caption{
     font-family:'IBM Plex Mono', monospace;
     font-size:10.5px;
@@ -1290,12 +1290,18 @@
 
   // 인물 주석 — 점(step1) → 선(step2) → 이름표(step3) 순서로 켜지고,
   // 끌 때는 세 단계가 함께 페이드아웃됩니다. 기본은 꺼진 상태입니다.
+  // 라벨은 배경 상자 없이 흰 글자만 두고, 서로 겹치지 않도록
+  // layoutArtworkAnnotations()가 그림 상/하단 여백으로 밀어내 배치하고
+  // 리더선(SVG)을 점→라벨로 실제로 이어줍니다.
   let annotationsOn = false;
+  let artworkAnnotationEls = [];
+
   function renderArtworkAnnotations(points){
     const container = document.getElementById('artwork-annotations');
     const toggleBtn = document.getElementById('artwork-annotate-toggle');
     if (!container || !toggleBtn) return;
     container.innerHTML = '';
+    artworkAnnotationEls = [];
     annotationsOn = false;
     toggleBtn.classList.remove('active');
     if (!points || !points.length){
@@ -1303,29 +1309,102 @@
       return;
     }
     toggleBtn.style.display = '';
+
+    const svgNS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(svgNS, 'svg');
+    svg.setAttribute('class', 'artwork-leader-svg');
+    svg.setAttribute('viewBox', '0 0 100 100');
+    svg.setAttribute('preserveAspectRatio', 'none');
+    container.appendChild(svg);
+
     points.forEach((p, i) => {
-      const el = document.createElement('div');
-      el.className = 'annot-point';
-      el.dataset.dir = p.y < 50 ? 'down' : 'up';
-      el.style.left = p.x + '%';
-      el.style.top = p.y + '%';
-      el.style.setProperty('--d', Math.min(i * 12, 260) + 'ms');
-      el.innerHTML = '<span class="annot-dot"></span><span class="annot-leader"></span><span class="annot-label"></span>';
-      el.querySelector('.annot-label').textContent = p.name;
-      container.appendChild(el);
+      const dir = p.y < 50 ? 'up' : 'down'; // 위쪽 인물은 천장 여백으로, 아래쪽 인물은 바닥 여백으로
+      const delay = Math.min(i * 12, 260) + 'ms';
+
+      const dotEl = document.createElement('div');
+      dotEl.className = 'annot-dot';
+      dotEl.style.left = p.x + '%';
+      dotEl.style.top = p.y + '%';
+      dotEl.style.setProperty('--d', delay);
+      container.appendChild(dotEl);
+
+      const pathEl = document.createElementNS(svgNS, 'path');
+      pathEl.setAttribute('class', 'annot-leader-path');
+      pathEl.setAttribute('pathLength', '1');
+      pathEl.style.setProperty('--d', delay);
+      svg.appendChild(pathEl);
+
+      const labelEl = document.createElement('div');
+      labelEl.className = 'annot-label';
+      labelEl.textContent = p.name;
+      labelEl.style.setProperty('--d', delay);
+      container.appendChild(labelEl);
+
+      artworkAnnotationEls.push({ x: p.x, y: p.y, dir, dotEl, pathEl, labelEl });
+    });
+
+    requestAnimationFrame(layoutArtworkAnnotations);
+  }
+
+  // 라벨들을 그림 상단(천장 근처)/하단(바닥 근처) 여백으로 몰아넣고,
+  // 같은 여백 안에서 좌우로 겹치면 다음 줄로 내려 쌓아서(shelf packing)
+  // 서로 겹치지 않게 합니다. 리더선은 점 → 최종 라벨 위치로 다시 그립니다.
+  function layoutArtworkAnnotations(){
+    const viewport = document.getElementById('artwork-viewport');
+    if (!viewport || !artworkAnnotationEls.length) return;
+    const vw = viewport.clientWidth;
+    if (!vw) return;
+
+    const GAP = 6, EDGE_PAD = 4;
+    const TOP_BASE_PCT = 4, BOTTOM_BASE_PCT = 95;
+    const ROW_STEP_PCT = 6.5;
+
+    function pack(list, baseYPct, rowStep){
+      const sorted = list.slice().sort((a, b) => a.x - b.x);
+      const rowEdges = [];
+      sorted.forEach(item => {
+        const w = item.labelEl.offsetWidth || 50;
+        const centerPx = (item.x / 100) * vw;
+        let row = 0;
+        while (row < rowEdges.length && centerPx - w / 2 < rowEdges[row] + GAP) row++;
+        if (rowEdges[row] === undefined) rowEdges[row] = -Infinity;
+        let leftPx = Math.max(centerPx - w / 2, rowEdges[row] + GAP);
+        leftPx = Math.min(leftPx, vw - w - EDGE_PAD);
+        leftPx = Math.max(leftPx, EDGE_PAD);
+        rowEdges[row] = leftPx + w;
+        item.labelX = ((leftPx + w / 2) / vw) * 100;
+        item.labelY = baseYPct + row * rowStep;
+      });
+    }
+
+    pack(artworkAnnotationEls.filter(a => a.dir === 'up'), TOP_BASE_PCT, ROW_STEP_PCT);
+    pack(artworkAnnotationEls.filter(a => a.dir === 'down'), BOTTOM_BASE_PCT, -ROW_STEP_PCT);
+
+    artworkAnnotationEls.forEach(item => {
+      item.labelEl.style.left = item.labelX + '%';
+      item.labelEl.style.top = item.labelY + '%';
+      item.pathEl.setAttribute('d', `M ${item.x} ${item.y} L ${item.labelX} ${item.labelY}`);
     });
   }
+  window.addEventListener('resize', () => {
+    if (artworkAnnotationEls.length) layoutArtworkAnnotations();
+  });
+
   function setArtworkAnnotations(on){
     annotationsOn = on;
-    const points = document.querySelectorAll('.annot-point');
     const toggleBtn = document.getElementById('artwork-annotate-toggle');
     if (toggleBtn) toggleBtn.classList.toggle('active', on);
+    const dots = artworkAnnotationEls.map(a => a.dotEl);
+    const paths = artworkAnnotationEls.map(a => a.pathEl);
+    const labels = artworkAnnotationEls.map(a => a.labelEl);
     if (on){
-      points.forEach(p => p.classList.add('step1'));
-      setTimeout(() => points.forEach(p => p.classList.add('step2')), 260);
-      setTimeout(() => points.forEach(p => p.classList.add('step3')), 520);
+      dots.forEach(d => d.classList.add('step1'));
+      setTimeout(() => paths.forEach(p => p.classList.add('step2')), 260);
+      setTimeout(() => labels.forEach(l => l.classList.add('step3')), 520);
     } else {
-      points.forEach(p => p.classList.remove('step1', 'step2', 'step3'));
+      dots.forEach(d => d.classList.remove('step1'));
+      paths.forEach(p => p.classList.remove('step2'));
+      labels.forEach(l => l.classList.remove('step3'));
     }
   }
 
