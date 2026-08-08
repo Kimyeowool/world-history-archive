@@ -521,7 +521,8 @@
      빈 공간에서는 지구본을 계속 드래그/조작할 수 있게 합니다. */
   #category-panel.visible .back-btn,
   #category-panel.visible #category-list li,
-  #category-panel.visible #category-list .category-desc{
+  #category-panel.visible #category-list .category-desc,
+  #category-panel.visible .category-nav-btn{
     pointer-events:auto;
   }
   #category-list li::before{
@@ -547,6 +548,44 @@
   }
   #category-list li.empty::before{ display:none; }
   #category-list li.empty:hover{ padding-left:22px; color:var(--brass); }
+
+  #category-nav{
+    flex-shrink:0;
+    display:flex;
+    justify-content:space-between;
+    gap:12px;
+    margin-top:10px;
+    padding-top:14px;
+    border-top:1px solid rgba(198,161,91,0.3);
+  }
+  #category-nav:empty{ display:none; }
+  .category-nav-btn{
+    flex:1;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    background:transparent;
+    border:1px solid rgba(198,161,91,0.4);
+    color:var(--parchment-dim);
+    font-family:'Spectral', serif;
+    font-size:14px;
+    padding:9px 12px;
+    cursor:pointer;
+    text-shadow:0 1px 6px rgba(0,0,0,0.85);
+    transition:border-color .2s ease, color .2s ease, background .2s ease;
+  }
+  .category-nav-btn:hover{
+    border-color:var(--brass);
+    color:var(--brass);
+    background:rgba(198,161,91,0.12);
+  }
+  .category-nav-btn .nav-label{
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+  .category-nav-next{ justify-content:flex-end; text-align:right; }
+  .category-nav-arrow{ flex-shrink:0; opacity:0.8; }
 
   #category-list li.toggle-item::before{
     border-radius:2px; /* 원형 점 대신 네모 점으로 구분 (토글 버튼 표시) */
@@ -971,6 +1010,7 @@
     <h2 id="category-title">역사</h2>
     <div class="category-rule"></div>
     <ul id="category-list"></ul>
+    <div id="category-nav"></div>
   </div>
 
   <div id="artwork-panel">
@@ -1172,6 +1212,58 @@
 
     updateArtworkPanel(node);
     updateReligionOverlay();
+    renderCategoryNav();
+  }
+
+  // 앞/뒤 페이지 이동 — 같은 부모 아래(같은 목록 안)의 이전/다음 항목으로 바로 이동합니다.
+  // groups가 있으면 그 순서를, 없으면 children의 등록 순서를 형제 순서로 봅니다.
+  function orderedSiblingNames(parentNode){
+    if (!parentNode || !parentNode.children) return [];
+    if (parentNode.groups){
+      const names = [];
+      parentNode.groups.forEach(g => g.items.forEach(name => {
+        if (Object.prototype.hasOwnProperty.call(parentNode.children, name)) names.push(name);
+      }));
+      return names;
+    }
+    return Object.keys(parentNode.children);
+  }
+
+  function renderCategoryNav(){
+    const navEl = document.getElementById('category-nav');
+    if (!navEl) return;
+    navEl.innerHTML = '';
+    if (categoryStack.length < 1) return;
+
+    const parentPath = categoryStack.slice(0, -1);
+    const parentNode = nodeAtPath(parentPath);
+    const siblings = orderedSiblingNames(parentNode);
+    const currentName = categoryStack[categoryStack.length - 1];
+    const idx = siblings.indexOf(currentName);
+    if (idx === -1 || siblings.length <= 1) return;
+
+    const prevName = idx > 0 ? siblings[idx - 1] : null;
+    const nextName = idx < siblings.length - 1 ? siblings[idx + 1] : null;
+
+    if (prevName){
+      const btn = document.createElement('button');
+      btn.className = 'category-nav-btn category-nav-prev fade-item';
+      btn.innerHTML = '<span class="category-nav-arrow">◀</span><span class="nav-label">' + prevName + '</span>';
+      btn.addEventListener('click', e => { e.stopPropagation(); navigateTo([...parentPath, prevName]); });
+      navEl.appendChild(btn);
+    } else {
+      navEl.appendChild(document.createElement('span'));
+    }
+
+    if (nextName){
+      const btn = document.createElement('button');
+      btn.className = 'category-nav-btn category-nav-next fade-item';
+      btn.innerHTML = '<span class="nav-label">' + nextName + '</span><span class="category-nav-arrow">▶</span>';
+      btn.addEventListener('click', e => { e.stopPropagation(); navigateTo([...parentPath, nextName]); });
+      navEl.appendChild(btn);
+    } else {
+      navEl.appendChild(document.createElement('span'));
+    }
   }
 
   // 명화 패널 — 노드에 artwork가 있으면 오른쪽에 액자로 띄우고, 없으면 숨깁니다.
@@ -1581,6 +1673,8 @@
       categoryStack = [];
       const listEl = document.getElementById('category-list');
       if (listEl) listEl.innerHTML = '';
+      const navEl = document.getElementById('category-nav');
+      if (navEl) navEl.innerHTML = '';
     }, 450);
   }
 
