@@ -1229,11 +1229,21 @@
     return Object.keys(parentNode.children);
   }
 
+  // 역사/종교사/철학사/예술사/전쟁사 다섯 개를 서로 잇는 이전/다음은 두지 않고,
+  // 역사·철학사는 최상위 페이지 자신과 그 아래 2단계(1·2번째 하위 페이지)까지도
+  // 건너뛴 뒤 3번째 하위 페이지부터 버튼이 나타나도록 합니다.
+  function navSuppressedForPath(path){
+    if (path.length <= 1) return true;
+    if ((path[0] === '역사' || path[0] === '철학사') && path.length <= 3) return true;
+    return false;
+  }
+
   function renderCategoryNav(){
     const navEl = document.getElementById('category-nav');
     if (!navEl) return;
     navEl.innerHTML = '';
     if (categoryStack.length < 1) return;
+    if (navSuppressedForPath(categoryStack)) return;
 
     const parentPath = categoryStack.slice(0, -1);
     const parentNode = nodeAtPath(parentPath);
