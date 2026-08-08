@@ -610,27 +610,6 @@
     transform:translateY(0);
     pointer-events:auto;
   }
-  /* 명화 우측 상단의 '해석' 토글 — 인물 주석(점/선/이름표)이 그림을 가릴 수
-     있으므로 기본은 꺼진 상태로 두고 버튼으로 켜고 끕니다. */
-  #artwork-annotate-toggle{
-    align-self:flex-end;
-    margin-bottom:6px;
-    padding:6px 14px;
-    font-family:'IBM Plex Mono', monospace;
-    font-size:10.5px;
-    letter-spacing:0.14em;
-    color:var(--parchment-dim);
-    background:rgba(4,8,14,0.65);
-    border:1px solid rgba(198,161,91,0.45);
-    cursor:pointer;
-    transition:background .2s ease, color .2s ease, border-color .2s ease;
-  }
-  #artwork-annotate-toggle:hover{ color:var(--parchment); border-color:var(--brass); }
-  #artwork-annotate-toggle.active{
-    background:rgba(198,161,91,0.22);
-    color:var(--parchment);
-    border-color:var(--brass);
-  }
   #artwork-frame{
     position:relative;
     display:flex;
@@ -705,71 +684,6 @@
   }
   #artwork-viewport.dragging{ transition:opacity .8s ease; }
 
-  /* 인물 주석 — 그림과 정확히 같은 좌표계(뷰포트) 위에 겹쳐서, 확대/이동해도
-     같이 따라다닙니다. 선이 먼저 그려지고, 다 그려지면 이름표가 페이드인
-     됩니다. 끌 때는 선과 이름표가 함께 페이드아웃됩니다. 이름표는 고서
-     라벨처럼 크림색 상자 + 검은 테두리/글자로, 사이트 목록과 같은 서체를
-     씁니다. 라벨끼리 겹치지 않도록 JS(layoutArtworkAnnotations)가 그림
-     상단/하단의 여백(천장·바닥 쪽)으로 각 라벨을 밀어냅니다. */
-  #artwork-annotations{
-    position:absolute;
-    inset:0;
-    pointer-events:none;
-  }
-  .artwork-leader-svg{
-    position:absolute;
-    inset:0;
-    width:100%;
-    height:100%;
-    overflow:visible;
-  }
-  /* 선은 검은색이 기본입니다. 다만 검은 선 하나만 그리면 명화의 어두운
-     배경(그림자·짙은 옷자락 등) 위에서는 대비가 낮아져 중간중간 끊어져
-     보입니다. 그래서 얇은 밝은색 후광(윤곽) 위에 검은 선을 겹쳐, 그림 어디를
-     지나도 선 자체는 검게 보이면서 항상 또렷하게 이어져 보이도록 합니다.
-     두 선은 같은 경로/같은 타이밍으로 함께 그려지고 사라집니다. */
-  .annot-leader-outline{
-    fill:none;
-    stroke:#f7f2e2;
-    stroke-width:3;
-    stroke-linecap:round;
-    vector-effect:non-scaling-stroke;
-    stroke-dasharray:1;
-    stroke-dashoffset:1;
-    opacity:0;
-    transition:stroke-dashoffset .5s ease, opacity .35s ease;
-  }
-  .annot-leader-outline.step1{ stroke-dashoffset:0; opacity:0.75; }
-  .annot-leader-path{
-    fill:none;
-    stroke:#000;
-    stroke-width:1.6;
-    stroke-linecap:round;
-    vector-effect:non-scaling-stroke;
-    stroke-dasharray:1;
-    stroke-dashoffset:1;
-    opacity:0;
-    transition:stroke-dashoffset .5s ease, opacity .35s ease;
-  }
-  .annot-leader-path.step1{ stroke-dashoffset:0; opacity:1; }
-  .annot-label{
-    position:absolute;
-    transform:translate(-50%, -50%) scale(0.9);
-    white-space:nowrap;
-    padding:6px 14px;
-    background:#efe4c4;
-    border:2px solid #000;
-    border-radius:2px;
-    font-family:'Spectral', serif;
-    font-size:14px;
-    font-weight:700;
-    line-height:1.35;
-    color:#000;
-    box-shadow:0 3px 10px rgba(0,0,0,0.55);
-    opacity:0;
-    transition:opacity .35s ease, transform .35s ease;
-  }
-  .annot-label.step2{ opacity:1; transform:translate(-50%, -50%) scale(1); }
   #artwork-caption{
     font-family:'IBM Plex Mono', monospace;
     font-size:10.5px;
@@ -1060,7 +974,6 @@
   </div>
 
   <div id="artwork-panel">
-    <button id="artwork-annotate-toggle" type="button">해석</button>
     <div id="artwork-frame">
       <svg class="artwork-frame-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
         <path class="frame-outer" d="M50,99 L99,99 L99,1 L50,1" pathLength="1"/>
@@ -1070,7 +983,6 @@
       </svg>
       <div id="artwork-viewport">
         <img id="artwork-image" src="" alt="">
-        <div id="artwork-annotations"></div>
       </div>
     </div>
     <p id="artwork-caption"></p>
@@ -1270,7 +1182,6 @@
   let artworkZoom = 1;
   let artworkPanX = 0, artworkPanY = 0;
   let artworkCurrentFile = null;
-  let artworkPendingAnnotations = null;
 
   function clampArtworkPan(viewport){
     const maxX = (viewport.offsetWidth * (artworkZoom - 1)) / 2;
@@ -1294,149 +1205,6 @@
     applyArtworkTransform();
   }
 
-  // 인물 주석 — 리더선이 먼저 그려지고(step1), 다 그려지면 이름표가
-  // 페이드인(step2)됩니다. 끌 때는 둘 다 함께 페이드아웃됩니다. 기본은
-  // 꺼진 상태입니다. 라벨은 데이터에 labelX/labelY가 지정돼 있으면 그
-  // 좌표를 그대로 쓰고(참고 도판을 그대로 재현할 때), 없으면
-  // layoutArtworkAnnotations()가 그림 상/하단 여백으로 자동 배치합니다.
-  let annotationsOn = false;
-  let artworkAnnotationEls = [];
-
-  function renderArtworkAnnotations(points){
-    const container = document.getElementById('artwork-annotations');
-    const toggleBtn = document.getElementById('artwork-annotate-toggle');
-    if (!container || !toggleBtn) return;
-    container.innerHTML = '';
-    artworkAnnotationEls = [];
-    annotationsOn = false;
-    toggleBtn.classList.remove('active');
-    if (!points || !points.length){
-      toggleBtn.style.display = 'none';
-      return;
-    }
-    toggleBtn.style.display = '';
-
-    const svgNS = 'http://www.w3.org/2000/svg';
-    const svg = document.createElementNS(svgNS, 'svg');
-    svg.setAttribute('class', 'artwork-leader-svg');
-    svg.setAttribute('viewBox', '0 0 100 100');
-    svg.setAttribute('preserveAspectRatio', 'none');
-    container.appendChild(svg);
-
-    // 인물이 그림 위쪽/아래쪽 절반에 고르게 있다는 보장이 없으므로(예: 아테네
-    // 학당은 대부분 인물이 화면 아래쪽 2/3에 몰려있음), 화면 중앙(50%)이
-    // 아니라 실제 y좌표들의 중앙값을 기준으로 절반씩 나눠서 천장 여백과
-    // 바닥 여백에 고르게 분산시킵니다.
-    const sortedY = points.map(p => p.y).slice().sort((a, b) => a - b);
-    const medianY = sortedY[Math.floor(sortedY.length / 2)];
-
-    points.forEach(p => {
-      const dir = p.y <= medianY ? 'up' : 'down';
-
-      // 어두운 윤곽선(굵게) 위에 밝은 선(얇게)을 겹쳐서, 그림의 밝은/어두운
-      // 영역 어디를 지나도 선이 끊겨 보이지 않게 합니다.
-      const outlineEl = document.createElementNS(svgNS, 'path');
-      outlineEl.setAttribute('class', 'annot-leader-outline');
-      outlineEl.setAttribute('pathLength', '1');
-      svg.appendChild(outlineEl);
-
-      const pathEl = document.createElementNS(svgNS, 'path');
-      pathEl.setAttribute('class', 'annot-leader-path');
-      pathEl.setAttribute('pathLength', '1');
-      svg.appendChild(pathEl);
-
-      const labelEl = document.createElement('div');
-      labelEl.className = 'annot-label';
-      labelEl.textContent = p.name;
-      container.appendChild(labelEl);
-
-      const preset = (p.labelX != null && p.labelY != null);
-      artworkAnnotationEls.push({
-        x: p.x, y: p.y, dir, outlineEl, pathEl, labelEl, preset,
-        labelX: preset ? p.labelX : undefined,
-        labelY: preset ? p.labelY : undefined
-      });
-    });
-
-    requestAnimationFrame(layoutArtworkAnnotations);
-  }
-
-  // preset(labelX/labelY 고정 좌표)이 있는 라벨은 데이터에 있는 좌표를
-  // 그대로 씁니다(참고 도판을 그대로 재현). preset이 없는 라벨만 그림
-  // 상단(천장 근처)/하단(바닥 근처) 여백으로 몰아넣어 좌우로 겹치면 다음
-  // 줄로 내려 쌓습니다(shelf packing). 리더선은 항상 점 → 최종 라벨
-  // 위치로 다시 그립니다.
-  function layoutArtworkAnnotations(){
-    const viewport = document.getElementById('artwork-viewport');
-    if (!viewport || !artworkAnnotationEls.length) return;
-    const vw = viewport.clientWidth;
-    if (!vw) return;
-
-    const GAP = 6, EDGE_PAD = 4;
-    const TOP_BASE_PCT = 4, BOTTOM_BASE_PCT = 95;
-    const ROW_STEP_PCT = 6.5;
-
-    function pack(list, baseYPct, rowStep){
-      const sorted = list.slice().sort((a, b) => a.x - b.x);
-      const rowEdges = [];
-      sorted.forEach(item => {
-        const w = item.labelEl.offsetWidth || 50;
-        const centerPx = (item.x / 100) * vw;
-        let row = 0;
-        while (row < rowEdges.length && centerPx - w / 2 < rowEdges[row] + GAP) row++;
-        if (rowEdges[row] === undefined) rowEdges[row] = -Infinity;
-        let leftPx = Math.max(centerPx - w / 2, rowEdges[row] + GAP);
-        leftPx = Math.min(leftPx, vw - w - EDGE_PAD);
-        leftPx = Math.max(leftPx, EDGE_PAD);
-        rowEdges[row] = leftPx + w;
-        item.labelX = ((leftPx + w / 2) / vw) * 100;
-        item.labelY = baseYPct + row * rowStep;
-      });
-    }
-
-    const autoItems = artworkAnnotationEls.filter(a => !a.preset);
-    pack(autoItems.filter(a => a.dir === 'up'), TOP_BASE_PCT, ROW_STEP_PCT);
-    pack(autoItems.filter(a => a.dir === 'down'), BOTTOM_BASE_PCT, -ROW_STEP_PCT);
-
-    const vh = viewport.clientHeight;
-    artworkAnnotationEls.forEach(item => {
-      item.labelEl.style.left = item.labelX + '%';
-      item.labelEl.style.top = item.labelY + '%';
-      // 선이 라벨 "중앙"이 아니라 인물 쪽을 향한 모서리에서 끝나야
-      // 참고 도판처럼 상자 끝에 깃발처럼 딱 붙어 보입니다.
-      const halfWPct = (item.labelEl.offsetWidth / 2) / vw * 100;
-      const halfHPct = (item.labelEl.offsetHeight / 2) / vh * 100;
-      const cornerX = item.labelX + (item.x < item.labelX ? -halfWPct : halfWPct);
-      const cornerY = item.labelY + (item.y < item.labelY ? -halfHPct : halfHPct);
-      const d = `M ${item.x} ${item.y} L ${cornerX} ${cornerY}`;
-      item.pathEl.setAttribute('d', d);
-      item.outlineEl.setAttribute('d', d);
-    });
-  }
-  window.addEventListener('resize', () => {
-    if (artworkAnnotationEls.length) layoutArtworkAnnotations();
-  });
-
-  function setArtworkAnnotations(on){
-    annotationsOn = on;
-    const toggleBtn = document.getElementById('artwork-annotate-toggle');
-    if (toggleBtn) toggleBtn.classList.toggle('active', on);
-    const paths = artworkAnnotationEls.map(a => a.pathEl);
-    const outlines = artworkAnnotationEls.map(a => a.outlineEl);
-    const labels = artworkAnnotationEls.map(a => a.labelEl);
-    if (on){
-      // 선이 먼저 쭉 그려지고, 다 그려지면 이름표가 페이드인됩니다.
-      paths.forEach(p => p.classList.add('step1'));
-      outlines.forEach(o => o.classList.add('step1'));
-      setTimeout(() => labels.forEach(l => l.classList.add('step2')), 500);
-    } else {
-      // 끌 때는 선과 이름표가 함께 페이드아웃됩니다.
-      paths.forEach(p => p.classList.remove('step1'));
-      outlines.forEach(o => o.classList.remove('step1'));
-      labels.forEach(l => l.classList.remove('step2'));
-    }
-  }
-
   function updateArtworkPanel(node){
     const panel = document.getElementById('artwork-panel');
     const viewport = document.getElementById('artwork-viewport');
@@ -1447,7 +1215,6 @@
     if (!node.artwork){
       panel.classList.remove('visible');
       artworkCurrentFile = null;
-      renderArtworkAnnotations(null);
       return;
     }
 
@@ -1456,8 +1223,6 @@
     artworkCurrentFile = node.artwork.file;
     viewport.classList.remove('loaded');
     setArtworkZoom(1);
-    renderArtworkAnnotations(null);
-    artworkPendingAnnotations = node.artwork.annotations || null;
     setTimeout(() => {
       img.src = node.artwork.file;
       img.alt = node.artwork.alt || '';
@@ -1810,7 +1575,6 @@
     const artworkPanel = document.getElementById('artwork-panel');
     if (artworkPanel) artworkPanel.classList.remove('visible');
     artworkCurrentFile = null;
-    setArtworkAnnotations(false);
     Object.values(RELIGION_PAGE_LAYERS).forEach(p => clearOverlayLayer(p.layerId));
     Object.keys(SECT_COLORS).forEach(sect => clearOverlayLayer('sect-' + sect));
     setTimeout(() => {
@@ -1838,7 +1602,6 @@
         artworkViewportEl.style.aspectRatio = artworkImageEl.naturalWidth + ' / ' + artworkImageEl.naturalHeight;
       }
       artworkViewportEl.classList.add('loaded');
-      renderArtworkAnnotations(artworkPendingAnnotations);
     });
 
     // 확대된 상태에서 드래그로 동서남북 이동 (팬)
@@ -1869,10 +1632,6 @@
         if (artworkFrameEl) artworkFrameEl.classList.remove('dragging');
       });
     });
-  }
-  const artworkAnnotateToggleEl = document.getElementById('artwork-annotate-toggle');
-  if (artworkAnnotateToggleEl){
-    artworkAnnotateToggleEl.addEventListener('click', () => setArtworkAnnotations(!annotationsOn));
   }
   window.openCategory = openCategory;
   window.goBackCategory = goBackCategory;
