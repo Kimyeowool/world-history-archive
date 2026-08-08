@@ -2121,7 +2121,11 @@
       .showAtmosphere(true)
       .atmosphereColor('#8fc4f5')
       .atmosphereAltitude(0.15)
-      .polygonAltitude(0.001)
+      // 국가 색칠(폴리곤 캡)은 구 표면 위에 평평한 삼각형으로 그려집니다.
+      // 고도가 너무 낮으면(예: 0.001) 넓은 국가일수록 삼각형 변이 구의
+      // 실제 곡률보다 안쪽으로 처져서, 그 틈으로 지구본 표면(텍스처)이
+      // 비쳐 보이는 구멍이 생깁니다. 고도를 넉넉히 띄워서 이 틈을 없앱니다.
+      .polygonAltitude(0.01)
       .polygonSideColor(() => 'rgba(0,0,0,0.25)')
       .polygonStrokeColor(() => 'rgba(255,255,255,0.55)')
       .polygonCapColor(f => capColorFor(f.properties.name))
