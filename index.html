@@ -472,6 +472,7 @@
     font-family:'Cormorant Garamond', serif;
     font-weight:600;
     font-size:clamp(30px, 4vw, 44px);
+    line-height:1.15;
     color:var(--parchment);
     margin:0 0 10px;
     text-shadow:0 2px 10px rgba(0,0,0,0.85);
@@ -1103,6 +1104,20 @@
     return node;
   }
 
+  function fitTitleToTwoLines(el){
+    const maxLines = 2;
+    const lineHeightRatio = 1.15;
+    el.style.fontSize = '';
+    const naturalSize = parseFloat(getComputedStyle(el).fontSize);
+    const minFontSize = Math.max(18, naturalSize * 0.45);
+    let fontSize = naturalSize;
+    el.style.fontSize = fontSize + 'px';
+    while (fontSize > minFontSize && el.scrollHeight > fontSize * lineHeightRatio * maxLines + 1) {
+      fontSize -= 1;
+      el.style.fontSize = fontSize + 'px';
+    }
+  }
+
   function renderCategoryContent(){
     const titleEl = document.getElementById('category-title');
     const ruleEl = document.querySelector('.category-rule');
@@ -1111,6 +1126,7 @@
 
     const node = nodeAtPath(categoryStack);
     titleEl.textContent = categoryStack[categoryStack.length - 1];
+    fitTitleToTwoLines(titleEl);
     listEl.innerHTML = '';
     listEl.scrollTop = 0;
 
