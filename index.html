@@ -743,6 +743,48 @@
     text-shadow:0 1px 6px rgba(0,0,0,0.9);
     margin:0;
   }
+  /* 사진이 여러 장인 명화 패널의 "N/M" 카운터 — 액자 위, 작게 표시됩니다. */
+  #artwork-counter{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10px;
+    letter-spacing:0.12em;
+    color:var(--parchment-dim);
+    text-align:center;
+    text-shadow:0 1px 6px rgba(0,0,0,0.9);
+    margin:0;
+    min-height:1.2em;
+    opacity:0.85;
+  }
+  #artwork-counter:empty{ display:none; }
+  /* 좌우 넘김 버튼 — 액자 좌우 바깥쪽에 얹혀, 사진이 여러 장일 때만 보입니다. */
+  .artwork-nav-btn{
+    position:absolute;
+    top:50%;
+    transform:translateY(-50%);
+    width:34px;
+    height:34px;
+    border-radius:50%;
+    border:1px solid rgba(198,161,91,0.45);
+    background:rgba(10,18,32,0.72);
+    color:var(--brass);
+    font-size:20px;
+    line-height:1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+    z-index:2;
+    transition:background .2s ease, border-color .2s ease, opacity .2s ease;
+    opacity:0.75;
+  }
+  .artwork-nav-btn:hover{
+    opacity:1;
+    background:rgba(198,161,91,0.22);
+    border-color:var(--brass);
+  }
+  .artwork-nav-btn.artwork-nav-prev{ left:6px; }
+  .artwork-nav-btn.artwork-nav-next{ right:6px; }
+  .artwork-nav-btn.hidden{ display:none; }
   @media (max-width:900px){
     #artwork-panel{ display:none; } /* 좁은 화면에서는 목차 패널과 겹치므로 숨김 */
   }
@@ -1025,6 +1067,7 @@
   </div>
 
   <div id="artwork-panel">
+    <p id="artwork-counter"></p>
     <div id="artwork-frame">
       <svg class="artwork-frame-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
         <path class="frame-outer" d="M50,99 L99,99 L99,1 L50,1" pathLength="1"/>
@@ -1032,9 +1075,11 @@
         <path class="frame-inner" d="M50,94 L94,94 L94,6 L50,6" pathLength="1"/>
         <path class="frame-inner" d="M50,94 L6,94 L6,6 L50,6" pathLength="1"/>
       </svg>
+      <button id="artwork-prev" class="artwork-nav-btn artwork-nav-prev" aria-label="이전 사진" type="button">&#8249;</button>
       <div id="artwork-viewport">
         <img id="artwork-image" src="" alt="">
       </div>
+      <button id="artwork-next" class="artwork-nav-btn artwork-nav-next" aria-label="다음 사진" type="button">&#8250;</button>
     </div>
     <p id="artwork-caption"></p>
   </div>
@@ -1310,6 +1355,11 @@
   let artworkZoom = 1;
   let artworkPanX = 0, artworkPanY = 0;
   let artworkCurrentFile = null;
+  // 여러 장짜리 명화 패널(캐러셀) 상태 — 현재 노드의 사진 목록과, 그중 몇 번째를
+  // 보고 있는지를 따로 들고 있습니다. artworkCurrentFile은 "같은 세트가 이미
+  // 떠 있는지" 판단용 키로, 파일명들을 이어붙인 문자열을 씁니다.
+  let artworkImages = [];
+  let artworkIndex = 0;
 
   function clampArtworkPan(viewport){
     const maxX = (viewport.offsetWidth * (artworkZoom - 1)) / 2;
@@ -1333,29 +1383,67 @@
     applyArtworkTransform();
   }
 
+  // node.artwork는 단일 사진 {file,alt,caption} 또는 여러 장짜리 배열
+  // [{file,alt,caption}, ...] 둘 다 올 수 있어, 항상 배열로 정규화합니다.
+  function normalizeArtwork(artwork){
+    if (!artwork) return [];
+    return Array.isArray(artwork) ? artwork : [artwork];
+  }
+
+  // 현재 artworkIndex가 가리키는 사진을 화면에 그립니다 — 이미지/설명 교체 후
+  // 카운터("N/M")와 좌우 버튼 표시 여부(사진이 한 장뿐이면 숨김)도 갱신합니다.
+  function renderArtworkImage(){
+    const img = document.getElementById('artwork-image');
+    const caption = document.getElementById('artwork-caption');
+    const counter = document.getElementById('artwork-counter');
+    const prevBtn = document.getElementById('artwork-prev');
+    const nextBtn = document.getElementById('artwork-next');
+    if (!img || !artworkImages.length) return;
+    const current = artworkImages[artworkIndex];
+    img.src = current.file;
+    img.alt = current.alt || '';
+    if (caption) caption.textContent = current.caption || '';
+    const multi = artworkImages.length > 1;
+    if (counter) counter.textContent = multi ? `${artworkIndex + 1}/${artworkImages.length}` : '';
+    if (prevBtn) prevBtn.classList.toggle('hidden', !multi);
+    if (nextBtn) nextBtn.classList.toggle('hidden', !multi);
+  }
+
+  function goToArtworkIndex(newIndex){
+    if (!artworkImages.length) return;
+    const viewport = document.getElementById('artwork-viewport');
+    artworkIndex = (newIndex + artworkImages.length) % artworkImages.length;
+    setArtworkZoom(1);
+    if (viewport) viewport.classList.remove('loaded');
+    setTimeout(renderArtworkImage, 180);
+  }
+
+  function artworkNext(){ goToArtworkIndex(artworkIndex + 1); }
+  function artworkPrev(){ goToArtworkIndex(artworkIndex - 1); }
+
   function updateArtworkPanel(node){
     const panel = document.getElementById('artwork-panel');
     const viewport = document.getElementById('artwork-viewport');
     const img = document.getElementById('artwork-image');
-    const caption = document.getElementById('artwork-caption');
     if (!panel || !img) return;
 
-    if (!node.artwork){
+    const images = normalizeArtwork(node.artwork);
+    if (!images.length){
       panel.classList.remove('visible');
       artworkCurrentFile = null;
+      artworkImages = [];
       return;
     }
 
     panel.classList.add('visible');
-    if (node.artwork.file === artworkCurrentFile) return;
-    artworkCurrentFile = node.artwork.file;
+    const setKey = images.map(a => a.file).join('|');
+    if (setKey === artworkCurrentFile) return;
+    artworkCurrentFile = setKey;
+    artworkImages = images;
+    artworkIndex = 0;
     viewport.classList.remove('loaded');
     setArtworkZoom(1);
-    setTimeout(() => {
-      img.src = node.artwork.file;
-      img.alt = node.artwork.alt || '';
-      caption.textContent = node.artwork.caption || '';
-    }, 260);
+    setTimeout(renderArtworkImage, 260);
   }
 
   // links/footnotes 값에서 경로(또는 각주 키)와 "몇 번째 등장을 링크할지"를 꺼냅니다.
@@ -1703,6 +1791,7 @@
     const artworkPanel = document.getElementById('artwork-panel');
     if (artworkPanel) artworkPanel.classList.remove('visible');
     artworkCurrentFile = null;
+    artworkImages = [];
     Object.values(RELIGION_PAGE_LAYERS).forEach(p => clearOverlayLayer(p.layerId));
     Object.keys(SECT_COLORS).forEach(sect => clearOverlayLayer('sect-' + sect));
     setTimeout(() => {
@@ -1724,6 +1813,10 @@
       setArtworkZoom(artworkZoom + (e.deltaY < 0 ? 0.15 : -0.15));
     }, { passive:false });
   }
+  const artworkPrevBtn = document.getElementById('artwork-prev');
+  const artworkNextBtn = document.getElementById('artwork-next');
+  if (artworkPrevBtn) artworkPrevBtn.addEventListener('click', e => { e.stopPropagation(); artworkPrev(); });
+  if (artworkNextBtn) artworkNextBtn.addEventListener('click', e => { e.stopPropagation(); artworkNext(); });
   const artworkImageEl = document.getElementById('artwork-image');
   const artworkViewportEl = document.getElementById('artwork-viewport');
   if (artworkImageEl && artworkViewportEl){
