@@ -18,7 +18,7 @@
     --land-line:  #4d7368;
     /* 명화 패널의 "허용 최대 범위"(빨간 테두리에 해당). 패널·이미지·프레임이
        전부 이 하나의 값에서 파생되어야 서로 어긋나지 않습니다. */
-    --artwork-max-h: calc(min(85vh, 960px) - 225px);
+    --artwork-max-h: calc(min(85vh, 960px) - 240px);
   }
   *{box-sizing:border-box; margin:0; padding:0;}
   html,body{height:100%;}
@@ -735,6 +735,12 @@
   #artwork-viewport.dragging{ transition:opacity .8s ease; }
 
   #artwork-caption{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:2px;
+  }
+  #artwork-caption-title{
     font-family:'IBM Plex Mono', monospace;
     font-size:10.5px;
     letter-spacing:0.08em;
@@ -743,6 +749,18 @@
     text-shadow:0 1px 6px rgba(0,0,0,0.9);
     margin:0;
   }
+  /* 사진 제목 아래 붙는 한 줄 설명 — 제목보다 한 단계 더 옅고 작게 표시됩니다. */
+  #artwork-caption-desc{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:9px;
+    letter-spacing:0.05em;
+    color:var(--parchment-dim);
+    opacity:0.65;
+    text-align:center;
+    text-shadow:0 1px 6px rgba(0,0,0,0.9);
+    margin:0;
+  }
+  #artwork-caption-desc:empty{ display:none; }
   /* 사진이 여러 장인 명화 패널의 "N/M" 카운터 — 액자 위, 작게 표시됩니다. */
   #artwork-counter{
     font-family:'IBM Plex Mono', monospace;
@@ -1081,7 +1099,10 @@
       </div>
       <button id="artwork-next" class="artwork-nav-btn artwork-nav-next" aria-label="다음 사진" type="button">&#8250;</button>
     </div>
-    <p id="artwork-caption"></p>
+    <div id="artwork-caption">
+      <p id="artwork-caption-title"></p>
+      <p id="artwork-caption-desc"></p>
+    </div>
   </div>
 
   <div id="data-loading-badge">GITHUB에서 콘텐츠 불러오는 중…</div>
@@ -1394,7 +1415,8 @@
   // 카운터("N/M")와 좌우 버튼 표시 여부(사진이 한 장뿐이면 숨김)도 갱신합니다.
   function renderArtworkImage(){
     const img = document.getElementById('artwork-image');
-    const caption = document.getElementById('artwork-caption');
+    const captionTitle = document.getElementById('artwork-caption-title');
+    const captionDesc = document.getElementById('artwork-caption-desc');
     const counter = document.getElementById('artwork-counter');
     const prevBtn = document.getElementById('artwork-prev');
     const nextBtn = document.getElementById('artwork-next');
@@ -1402,7 +1424,9 @@
     const current = artworkImages[artworkIndex];
     img.src = current.file;
     img.alt = current.alt || '';
-    if (caption) caption.textContent = current.caption || '';
+    if (captionTitle) captionTitle.textContent = current.caption || '';
+    // desc는 선택 항목입니다 — 없는 사진(과거 데이터 등)은 제목 줄만 뜹니다.
+    if (captionDesc) captionDesc.textContent = current.desc || '';
     const multi = artworkImages.length > 1;
     if (counter) counter.textContent = multi ? `${artworkIndex + 1}/${artworkImages.length}` : '';
     if (prevBtn) prevBtn.classList.toggle('hidden', !multi);
