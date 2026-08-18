@@ -653,6 +653,16 @@
     transform:translateY(0);
     pointer-events:auto;
   }
+  /* 액자(#artwork-frame)와 접기 탭(#artwork-fold-tab)을 한 줄에 나란히 놓는
+     감싸개입니다. 탭은 액자 오른쪽 바깥에 고정되고, 접힐 때는 액자만
+     오른쪽 끝을 축으로 scaleX(0)로 줄어들어 탭 자리는 그대로 유지됩니다. */
+  #artwork-fold-row{
+    position:relative;
+    display:flex;
+    align-items:stretch;
+    max-width:100%;
+    max-height:100%;
+  }
   #artwork-frame{
     position:relative;
     display:flex;
@@ -668,6 +678,39 @@
        잘라냅니다. */
     overflow:visible;
     cursor:zoom-in;
+    transform-origin:right center;
+    transition:transform .5s cubic-bezier(.4,0,.2,1), opacity .4s ease;
+  }
+  #artwork-panel.artwork-folded #artwork-frame{
+    transform:scaleX(0.001);
+    opacity:0;
+    pointer-events:none;
+  }
+  /* 액자 오른쪽에 붙는 얇은 접기/펼치기 탭 — 액자 높이만큼 늘어나고,
+     접힌 상태에서는 화살표 방향이 반전됩니다. */
+  .artwork-fold-tab{
+    flex:none;
+    align-self:stretch;
+    width:16px;
+    margin-left:4px;
+    border:1px solid rgba(198,161,91,0.45);
+    background:rgba(10,18,32,0.72);
+    color:var(--brass);
+    font-size:13px;
+    line-height:1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+    z-index:3;
+    transition:background .2s ease, border-color .2s ease, transform .3s ease;
+  }
+  .artwork-fold-tab:hover{
+    background:rgba(198,161,91,0.22);
+    border-color:var(--brass);
+  }
+  #artwork-panel.artwork-folded .artwork-fold-tab{
+    transform:scaleX(-1);
   }
   #artwork-frame.zoomed{ overflow:hidden; cursor:grab; }
   #artwork-frame.zoomed.dragging{ cursor:grabbing; }
@@ -739,6 +782,11 @@
     flex-direction:column;
     align-items:center;
     gap:2px;
+    transition:opacity .4s ease;
+  }
+  #artwork-panel.artwork-folded #artwork-caption,
+  #artwork-panel.artwork-folded #artwork-counter{
+    opacity:0;
   }
   #artwork-caption-title{
     font-family:'IBM Plex Mono', monospace;
@@ -1054,18 +1102,20 @@
       <span class="label">전쟁사</span>
       <span class="en">Military History</span>
     </button>
-    <div class="empire-overlay-panel">
-      <label><input type="checkbox" onchange="window.toggleEmpireOverlay('rome', false, this)"> 로마 제국</label>
-      <label class="sub"><input type="checkbox" onchange="window.toggleEmpireOverlay('westRome', true, this)"> 서로마</label>
-      <label class="sub"><input type="checkbox" onchange="window.toggleEmpireOverlay('byzantium', true, this)"> 동로마(비잔틴)</label>
-      <label class="sub"><input type="checkbox" onchange="window.toggleEmpireOverlay('hre', true, this)"> 신성로마제국</label>
-      <label><input type="checkbox" onchange="window.toggleEmpireOverlay('macedon', false, this)"> 마케도니아 제국</label>
-      <label><input type="checkbox" onchange="window.toggleEmpireOverlay('ottoman', false, this)"> 오스만 제국</label>
-      <label><input type="checkbox" onchange="window.toggleEmpireOverlay('mongol', false, this)"> 몽골 제국</label>
-      <label><input type="checkbox" onchange="window.toggleEmpireOverlay('persia', false, this)"> 페르시아 제국</label>
-      <label><input type="checkbox" onchange="window.toggleEmpireOverlay('britain', false, this)"> 대영 제국</label>
-      <label><input type="checkbox" onchange="window.toggleEmpireOverlay('soviet', false, this)"> 소련</label>
-    </div>
+    <button class="plaque" onclick="openCategory('정치사')"><span class="pin"></span>
+      <span class="glyph">
+        <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 6 L20 34" stroke-width="1.4"/>
+          <path d="M11 6 L29 6" stroke-width="1.4"/>
+          <path d="M20 11 L8 11 L4 20 C4 23.5 8 25.5 8 25.5 C8 25.5 12 23.5 12 20 L8 11" stroke-width="1"/>
+          <path d="M20 11 L32 11 L36 20 C36 23.5 32 25.5 32 25.5 C32 25.5 28 23.5 28 20 L32 11" stroke-width="1"/>
+          <path d="M14 34 H26" stroke-width="1.4"/>
+          <rect x="16.5" y="27" width="7" height="7" stroke-width="1"/>
+        </svg>
+      </span>
+      <span class="label">정치사</span>
+      <span class="en">Political History</span>
+    </button>
       </div>
     </div>
   </div>
@@ -1086,18 +1136,21 @@
 
   <div id="artwork-panel">
     <p id="artwork-counter"></p>
-    <div id="artwork-frame">
-      <svg class="artwork-frame-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-        <path class="frame-outer" d="M50,99 L99,99 L99,1 L50,1" pathLength="1"/>
-        <path class="frame-outer" d="M50,99 L1,99 L1,1 L50,1" pathLength="1"/>
-        <path class="frame-inner" d="M50,94 L94,94 L94,6 L50,6" pathLength="1"/>
-        <path class="frame-inner" d="M50,94 L6,94 L6,6 L50,6" pathLength="1"/>
-      </svg>
-      <button id="artwork-prev" class="artwork-nav-btn artwork-nav-prev" aria-label="이전 사진" type="button">&#8249;</button>
-      <div id="artwork-viewport">
-        <img id="artwork-image" src="" alt="">
+    <div id="artwork-fold-row">
+      <div id="artwork-frame">
+        <svg class="artwork-frame-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+          <path class="frame-outer" d="M50,99 L99,99 L99,1 L50,1" pathLength="1"/>
+          <path class="frame-outer" d="M50,99 L1,99 L1,1 L50,1" pathLength="1"/>
+          <path class="frame-inner" d="M50,94 L94,94 L94,6 L50,6" pathLength="1"/>
+          <path class="frame-inner" d="M50,94 L6,94 L6,6 L50,6" pathLength="1"/>
+        </svg>
+        <button id="artwork-prev" class="artwork-nav-btn artwork-nav-prev" aria-label="이전 사진" type="button">&#8249;</button>
+        <div id="artwork-viewport">
+          <img id="artwork-image" src="" alt="">
+        </div>
+        <button id="artwork-next" class="artwork-nav-btn artwork-nav-next" aria-label="다음 사진" type="button">&#8250;</button>
       </div>
-      <button id="artwork-next" class="artwork-nav-btn artwork-nav-next" aria-label="다음 사진" type="button">&#8250;</button>
+      <button id="artwork-fold-tab" class="artwork-fold-tab" onclick="toggleArtworkFold()" aria-label="사진 접기/펼치기" type="button">&#8249;</button>
     </div>
     <div id="artwork-caption">
       <p id="artwork-caption-title"></p>
@@ -1147,7 +1200,8 @@
     '종교사': 'data/religion.json',
     '철학사': 'data/philosophy.json',
     '예술사': 'data/art.json',
-    '전쟁사': 'data/war.json'
+    '전쟁사': 'data/war.json',
+    '정치사': 'data/politics.json'
   };
   // 노션의 '각주' 페이지 — 사이트에 카테고리 버튼이나 페이지로는 절대 노출되지
   // 않고, desc 안에서 footnotes로 지정된 단어를 클릭했을 때만 작은 팝업으로 뜹니다.
@@ -1304,6 +1358,7 @@
 
     updateArtworkPanel(node);
     updateReligionOverlay();
+    updateEmpireOverlay();
     renderCategoryNav();
   }
 
@@ -1465,10 +1520,22 @@
     artworkCurrentFile = setKey;
     artworkImages = images;
     artworkIndex = 0;
+    panel.classList.remove('artwork-folded');
     viewport.classList.remove('loaded');
     setArtworkZoom(1);
     setTimeout(renderArtworkImage, 260);
   }
+
+  // 사진 오른쪽의 얇은 탭을 누르면 사진이 오른쪽 끝을 축으로 왼쪽에서
+  // 오른쪽으로 줄어들며 접히고, 다시 누르면 펼쳐집니다.
+  function toggleArtworkFold(){
+    const panel = document.getElementById('artwork-panel');
+    const tab = document.getElementById('artwork-fold-tab');
+    if (!panel) return;
+    const folded = panel.classList.toggle('artwork-folded');
+    if (tab) tab.setAttribute('aria-label', folded ? '사진 펼치기' : '사진 접기');
+  }
+  window.toggleArtworkFold = toggleArtworkFold;
 
   // links/footnotes 값에서 경로(또는 각주 키)와 "몇 번째 등장을 링크할지"를 꺼냅니다.
   // 값이 배열/문자열 그대로면 1번째 등장을 뜻하고, { path/key, occurrence } 형태면
@@ -1771,6 +1838,28 @@
   }
   window.toggleEmpireOverlay = toggleEmpireOverlay;
 
+  /* =====================================================================
+     특정 전쟁사 페이지를 열면 그 나라/제국의 최전성기 영토가 지도에
+     자동으로 표시되고, 페이지를 벗어나면 사라집니다. (종교 오버레이와
+     동일한 페이지↔레이어 매핑 방식 — updateReligionOverlay 참고)
+     ===================================================================== */
+  const EMPIRE_PAGE_LAYERS = {
+    '전쟁사>고대 전쟁사 (~BC 3000~AD 5세기)>로마의 정복전쟁': { layerId: 'empire-rome', empireKey: 'rome' },
+    '전쟁사>고대 전쟁사 (~BC 3000~AD 5세기)>알렉산드로스의 정복전쟁': { layerId: 'empire-macedon', empireKey: 'macedon' }
+  };
+
+  function updateEmpireOverlay(){
+    const pageKey = categoryStack.join('>');
+    const activePage = EMPIRE_PAGE_LAYERS[pageKey];
+
+    // 현재 매핑된 페이지가 아니면 이전에 자동으로 켜졌던 제국 레이어를 끕니다
+    Object.values(EMPIRE_PAGE_LAYERS).forEach(p => {
+      if (!activePage || p.layerId !== activePage.layerId) clearOverlayLayer(p.layerId);
+    });
+    if (!activePage) return;
+    setOverlayLayer(activePage.layerId, EMPIRE_COUNTRIES[activePage.empireKey] || [], EMPIRE_COLORS[activePage.empireKey]);
+  }
+
   function renderCategoryPanel(){
     const panel = document.getElementById('category-panel');
     if (!panel || categoryStack.length === 0) return;
@@ -1818,6 +1907,7 @@
     artworkImages = [];
     Object.values(RELIGION_PAGE_LAYERS).forEach(p => clearOverlayLayer(p.layerId));
     Object.keys(SECT_COLORS).forEach(sect => clearOverlayLayer('sect-' + sect));
+    Object.values(EMPIRE_PAGE_LAYERS).forEach(p => clearOverlayLayer(p.layerId));
     setTimeout(() => {
       categoryStack = [];
       const listEl = document.getElementById('category-list');
