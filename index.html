@@ -653,9 +653,15 @@
     transform:translateY(0);
     pointer-events:auto;
   }
+  /* 접힌 동안에는 패널 전체(빈 칸으로 남은 옛 사진 자리 포함)가 클릭/드래그를
+     가로채지 않도록 통째로 꺼둡니다 — 탭 자체는 계속 눌러야 하므로 별도로
+     되살립니다. 이걸 안 해두면 사진이 시각적으로만 사라질 뿐, 원래 사진이
+     있던 자리(패널의 고정폭 만큼)는 여전히 지구본 드래그를 막습니다. */
+  #artwork-panel.artwork-folded{
+    pointer-events:none;
+  }
   /* 액자(#artwork-frame)와 접기 탭(#artwork-fold-tab)을 한 줄에 나란히 놓는
-     감싸개입니다. 탭은 액자 오른쪽 바깥에 고정되고, 접힐 때는 액자만
-     오른쪽 끝을 축으로 scaleX(0)로 줄어들어 탭 자리는 그대로 유지됩니다. */
+     감싸개입니다. 탭은 항상 클릭 가능하도록 pointer-events를 따로 켜둡니다. */
   #artwork-fold-row{
     position:relative;
     display:flex;
@@ -674,15 +680,19 @@
     background:linear-gradient(155deg, rgba(198,161,91,0.18), rgba(10,18,32,0.6));
     box-shadow:0 20px 50px rgba(0,0,0,0.65);
     /* 소개 UI(선+이름창)는 그림 범위를 벗어나도 그대로 둡니다. 확대해서
-       볼 때만(팬/줌 중) 이미지가 액자 밖으로 새어나가지 않도록 그때만
-       잘라냅니다. */
+       볼 때만(팬/줌 중), 혹은 접는 애니메이션 중에만(JS가 그때그때
+       overflow를 hidden으로 바꿔줍니다) 이미지가 액자 밖으로 새어나가지
+       않도록 잘라냅니다. */
     overflow:visible;
     cursor:zoom-in;
-    transform-origin:right center;
-    transition:transform .5s cubic-bezier(.4,0,.2,1), opacity .4s ease;
+    /* 너비(width) 자체를 줄여 접습니다 — 시각적으로만 작아 보이는
+       transform:scale이 아니라 실제 레이아웃 폭이 줄어들어야, 사진이 있던
+       자리가 진짜로 비워져 그 위에서 지구본을 잡고 돌릴 수 있습니다.
+       (JS의 toggleArtworkFold가 접기 직전 현재 폭을 px로 고정한 뒤 0으로
+       줄이고, 펼 때는 반대로 재생합니다.) */
+    transition:width .5s cubic-bezier(.4,0,.2,1), opacity .4s ease;
   }
   #artwork-panel.artwork-folded #artwork-frame{
-    transform:scaleX(0.001);
     opacity:0;
     pointer-events:none;
   }
@@ -702,6 +712,7 @@
     align-items:center;
     justify-content:center;
     cursor:pointer;
+    pointer-events:auto;
     z-index:3;
     transition:background .2s ease, border-color .2s ease, transform .3s ease;
   }
@@ -1436,6 +1447,10 @@
   // 떠 있는지" 판단용 키로, 파일명들을 이어붙인 문자열을 씁니다.
   let artworkImages = [];
   let artworkIndex = 0;
+  // 접기 애니메이션 직전에 재둔 액자의 "펼쳐진" 실제 폭(px) — 펼 때 이 값으로
+  // 되돌립니다. auto(내용에 맞춰 자동)에서 곧장 0으로는 transition이 걸리지
+  // 않기 때문에, 접고/펼 때마다 시작 폭을 픽셀로 고정해줘야 합니다.
+  let artworkFrameExpandedWidth = null;
 
   function clampArtworkPan(viewport){
     const maxX = (viewport.offsetWidth * (artworkZoom - 1)) / 2;
@@ -1521,19 +1536,46 @@
     artworkImages = images;
     artworkIndex = 0;
     panel.classList.remove('artwork-folded');
+    // 이전 사진에서 접힌 채로 남아있던 인라인 폭/overflow가 새 사진 크기
+    // 계산에 끼어들지 않도록 초기화합니다.
+    const frameEl = document.getElementById('artwork-frame');
+    if (frameEl){ frameEl.style.width = ''; frameEl.style.overflow = ''; }
+    artworkFrameExpandedWidth = null;
     viewport.classList.remove('loaded');
     setArtworkZoom(1);
     setTimeout(renderArtworkImage, 260);
   }
 
-  // 사진 오른쪽의 얇은 탭을 누르면 사진이 오른쪽 끝을 축으로 왼쪽에서
-  // 오른쪽으로 줄어들며 접히고, 다시 누르면 펼쳐집니다.
+  // 사진 오른쪽의 얇은 탭을 누르면 액자의 실제 폭(레이아웃 자체)이 오른쪽
+  // 끝을 기준으로 줄어들며 접히고, 다시 누르면 원래 폭으로 펼쳐집니다.
+  // (시각적으로만 축소되는 transform이 아니라 진짜 폭을 줄여야, 사진이
+  // 있던 자리가 실제로 비어 그 위에서 지구본을 드래그할 수 있습니다.)
   function toggleArtworkFold(){
     const panel = document.getElementById('artwork-panel');
+    const frame = document.getElementById('artwork-frame');
     const tab = document.getElementById('artwork-fold-tab');
-    if (!panel) return;
-    const folded = panel.classList.toggle('artwork-folded');
-    if (tab) tab.setAttribute('aria-label', folded ? '사진 펼치기' : '사진 접기');
+    if (!panel || !frame) return;
+    const folding = !panel.classList.contains('artwork-folded');
+    if (folding){
+      const w = frame.getBoundingClientRect().width;
+      artworkFrameExpandedWidth = w;
+      frame.style.overflow = 'hidden';
+      frame.style.width = w + 'px';
+      void frame.offsetWidth; // 강제 리플로우 — 0으로 줄기 전에 현재 폭을 먼저 확정
+      panel.classList.add('artwork-folded');
+      frame.style.width = '0px';
+    } else {
+      panel.classList.remove('artwork-folded');
+      frame.style.overflow = 'hidden';
+      frame.style.width = (artworkFrameExpandedWidth || frame.scrollWidth) + 'px';
+      frame.addEventListener('transitionend', function onFoldEnd(e){
+        if (e.propertyName !== 'width') return;
+        frame.style.width = '';
+        frame.style.overflow = '';
+        frame.removeEventListener('transitionend', onFoldEnd);
+      });
+    }
+    if (tab) tab.setAttribute('aria-label', folding ? '사진 펼치기' : '사진 접기');
   }
   window.toggleArtworkFold = toggleArtworkFold;
 
@@ -1709,6 +1751,36 @@
     });
   }
 
+  // 종교는 영토(신자권)가 제국보다 훨씬 넓게 퍼져있어, 색칠된 국가 전체의
+  // 무게중심을 카메라 기준으로 쓰면 대양 한가운데처럼 애매한 곳을 비추게
+  // 됩니다. 대신 창시자가 태어나 활동한 지역을 기준으로 삼습니다 — 단일
+  // 창시자가 없는 힌두교/유대교/신토교는 역사적 발상지로 대신합니다.
+  const RELIGION_ORIGIN = {
+    islam:        { lat: 21.43, lng: 39.83 },  // 메카 — 무함마드
+    christianity: { lat: 32.70, lng: 35.30 },  // 나사렛 — 예수
+    hinduism:     { lat: 25.30, lng: 83.00 },  // 갠지스강 유역 — 발상지
+    judaism:      { lat: 31.78, lng: 35.22 },  // 예루살렘 — 발상지
+    sikh:         { lat: 31.85, lng: 73.70 },  // 난카나 사히브 — 구루 나낙
+    zoroastrian:  { lat: 36.75, lng: 66.90 },  // 박트리아(발흐) — 차라투스트라
+    confucian:    { lat: 35.60, lng: 116.99 }, // 취푸 — 공자
+    taoist:       { lat: 33.97, lng: 115.47 }, // 루이 — 노자
+    jain:         { lat: 25.98, lng: 85.13 },  // 바이샬리 인근 — 마하비라
+    shinto:       { lat: 34.45, lng: 136.72 }, // 이세 — 발상지
+    buddhism:     { lat: 24.70, lng: 84.99 }   // 보드가야 — 석가모니
+  };
+  // 같은 페이지에 머무는 동안 재렌더링될 때마다 카메라가 다시 튀지 않도록
+  let lastFlownReligionLayer = null;
+
+  function flyToReligionOrigin(religionKey){
+    if (!worldGlobe) return;
+    const globeEl = document.getElementById('globe-container');
+    if (!globeEl || globeEl.style.display === 'none') return; // 지구본 모드에서만 카메라 이동
+    const origin = RELIGION_ORIGIN[religionKey];
+    if (!origin) return;
+    setAutoRotate(false);
+    worldGlobe.pointOfView({ lat: origin.lat, lng: origin.lng, altitude: 2.0 }, 1600);
+  }
+
   function updateReligionOverlay(){
     const pageKey = categoryStack.join('>');
     const activePage = RELIGION_PAGE_LAYERS[pageKey];
@@ -1719,9 +1791,14 @@
     });
     if (!activePage){
       Object.keys(SECT_COLORS).forEach(sect => clearOverlayLayer('sect-' + sect));
+      lastFlownReligionLayer = null;
       return;
     }
     setOverlayLayer(activePage.layerId, getCountriesByReligion(activePage.religionKey), activePage.color);
+    if (lastFlownReligionLayer !== activePage.layerId){
+      lastFlownReligionLayer = activePage.layerId;
+      flyToReligionOrigin(activePage.religionKey);
+    }
   }
 
   function toggleSectOverlay(sect, li){
@@ -1848,6 +1925,11 @@
     '전쟁사>고대 전쟁사 (~BC 3000~AD 5세기)>알렉산드로스의 정복전쟁': { layerId: 'empire-macedon', empireKey: 'macedon' }
   };
 
+  // 방금 카메라를 이동시켜 보여준 제국 레이어 — 같은 페이지에 머무는 동안
+  // (재렌더링 등으로) updateEmpireOverlay가 다시 불려도 매번 카메라가
+  // 다시 튀지 않도록, "새로 들어온 페이지일 때만" 비행하게 막아줍니다.
+  let lastFlownEmpireLayer = null;
+
   function updateEmpireOverlay(){
     const pageKey = categoryStack.join('>');
     const activePage = EMPIRE_PAGE_LAYERS[pageKey];
@@ -1856,8 +1938,46 @@
     Object.values(EMPIRE_PAGE_LAYERS).forEach(p => {
       if (!activePage || p.layerId !== activePage.layerId) clearOverlayLayer(p.layerId);
     });
-    if (!activePage) return;
+    if (!activePage){
+      lastFlownEmpireLayer = null;
+      return;
+    }
     setOverlayLayer(activePage.layerId, EMPIRE_COUNTRIES[activePage.empireKey] || [], EMPIRE_COLORS[activePage.empireKey]);
+    if (lastFlownEmpireLayer !== activePage.layerId){
+      lastFlownEmpireLayer = activePage.layerId;
+      flyToEmpireTerritory(activePage.empireKey);
+    }
+  }
+
+  // 영토 국가들의 대표 위치(featureRepresentativePoint, 지구본 컬링에 쓰는
+  // 것과 동일한 함수)를 3D 단위벡터로 평균 내 무게중심을 구하고, 그 중심에서
+  // 가장 먼 나라까지의 각거리로 카메라 고도(altitude)를 정해 영토 전체가
+  // 화면에 들어오도록 맞춥니다. 지구본 모드에서만 동작하며, 자동회전만 멈출
+  // 뿐 컨트롤(드래그 회전)은 그대로 살아있어 사용자가 바로 이어서 움직일 수
+  // 있습니다 — 시점을 강제로 고정하는 게 아니라 "이쪽을 보여드릴게요" 정도의
+  // 안내용 카메라 이동입니다.
+  function flyToEmpireTerritory(empireKey){
+    if (!worldGlobe) return;
+    const globeEl = document.getElementById('globe-container');
+    if (!globeEl || globeEl.style.display === 'none') return;
+    const names = new Set(EMPIRE_COUNTRIES[empireKey] || []);
+    if (!names.size || !globeCountryFeatures.length) return;
+    const reps = globeCountryFeatures.filter(f => names.has(f.properties.name)).map(featureRepresentativePoint);
+    if (!reps.length) return;
+    let sx = 0, sy = 0, sz = 0;
+    reps.forEach(r => {
+      const lat = r.lat * Math.PI / 180, lng = r.lng * Math.PI / 180;
+      sx += Math.cos(lat) * Math.cos(lng);
+      sy += Math.cos(lat) * Math.sin(lng);
+      sz += Math.sin(lat);
+    });
+    sx /= reps.length; sy /= reps.length; sz /= reps.length;
+    const lat = Math.atan2(sz, Math.sqrt(sx * sx + sy * sy)) * 180 / Math.PI;
+    const lng = Math.atan2(sy, sx) * 180 / Math.PI;
+    const maxSpread = Math.max(...reps.map(r => angularDistDeg(lat, lng, r.lat, r.lng)));
+    const altitude = Math.min(3.2, Math.max(1.3, maxSpread / 22));
+    setAutoRotate(false);
+    worldGlobe.pointOfView({ lat, lng, altitude }, 1600);
   }
 
   function renderCategoryPanel(){
