@@ -1743,7 +1743,15 @@
     vajrayana: ['Mongolia','Bhutan']
   };
 
+  // RELIGION_MAP은 "국가별 대표 종교" 하나만 잡다 보니, 도교처럼 특정
+  // 국가(중국·한국)에서는 유교에 밀려 대표 종교로 안 잡히는 경우가 생깁니다.
+  // 이런 소수 케이스만 실제 문화권 국가 목록으로 따로 덮어씁니다.
+  const RELIGION_COUNTRY_OVERRIDE = {
+    taoist: ['China', 'South Korea', 'North Korea', 'Japan', 'Taiwan']
+  };
+
   function getCountriesByReligion(key){
+    if (RELIGION_COUNTRY_OVERRIDE[key]) return RELIGION_COUNTRY_OVERRIDE[key];
     const rel = window.WorldData.religion || {};
     return Object.keys(rel).filter(name => {
       const v = rel[name];
@@ -1759,7 +1767,7 @@
     islam:        { lat: 21.43, lng: 39.83 },  // 메카 — 무함마드
     christianity: { lat: 32.70, lng: 35.30 },  // 나사렛 — 예수
     hinduism:     { lat: 25.30, lng: 83.00 },  // 갠지스강 유역 — 발상지
-    judaism:      { lat: 31.78, lng: 35.22 },  // 예루살렘 — 발상지
+    judaism:      { lat: 31.78, lng: 35.22, altitude: 0.6 }, // 예루살렘 — 발상지(이스라엘이 작아 더 확대)
     sikh:         { lat: 31.85, lng: 73.70 },  // 난카나 사히브 — 구루 나낙
     zoroastrian:  { lat: 36.75, lng: 66.90 },  // 박트리아(발흐) — 차라투스트라
     confucian:    { lat: 35.60, lng: 116.99 }, // 취푸 — 공자
@@ -1768,6 +1776,7 @@
     shinto:       { lat: 34.45, lng: 136.72 }, // 이세 — 발상지
     buddhism:     { lat: 24.70, lng: 84.99 }   // 보드가야 — 석가모니
   };
+  const RELIGION_DEFAULT_ALTITUDE = 2.0;
   // 같은 페이지에 머무는 동안 재렌더링될 때마다 카메라가 다시 튀지 않도록
   let lastFlownReligionLayer = null;
 
@@ -1778,7 +1787,7 @@
     const origin = RELIGION_ORIGIN[religionKey];
     if (!origin) return;
     setAutoRotate(false);
-    worldGlobe.pointOfView({ lat: origin.lat, lng: origin.lng, altitude: 2.0 }, 1600);
+    worldGlobe.pointOfView({ lat: origin.lat, lng: origin.lng, altitude: origin.altitude || RELIGION_DEFAULT_ALTITUDE }, 1600);
   }
 
   function updateReligionOverlay(){
@@ -1949,11 +1958,20 @@
     }
   }
 
+  // 로마 제국처럼 영토가 동서로 워낙 넓게 퍼진 경우, 전 영토를 화면에 다
+  // 담으려는 고도 계산식(각거리 기반)을 그대로 쓰면 카메라가 지나치게
+  // 멀어져 밋밋해 보입니다. 사용자가 마케도니아 정도의 몰입감 있는
+  // 거리감을 선호해서, 그런 케이스만 고도를 직접 지정합니다.
+  const EMPIRE_ALTITUDE_OVERRIDE = {
+    rome: 1.3 // 마케도니아 제국이 자연스럽게 계산되는 고도와 맞춤
+  };
+
   // 영토 국가들의 대표 위치(featureRepresentativePoint, 지구본 컬링에 쓰는
   // 것과 동일한 함수)를 3D 단위벡터로 평균 내 무게중심을 구하고, 그 중심에서
   // 가장 먼 나라까지의 각거리로 카메라 고도(altitude)를 정해 영토 전체가
-  // 화면에 들어오도록 맞춥니다. 지구본 모드에서만 동작하며, 자동회전만 멈출
-  // 뿐 컨트롤(드래그 회전)은 그대로 살아있어 사용자가 바로 이어서 움직일 수
+  // 화면에 들어오도록 맞춥니다(EMPIRE_ALTITUDE_OVERRIDE에 지정된 제국은 그
+  // 값을 그대로 씁니다). 지구본 모드에서만 동작하며, 자동회전만 멈출 뿐
+  // 컨트롤(드래그 회전)은 그대로 살아있어 사용자가 바로 이어서 움직일 수
   // 있습니다 — 시점을 강제로 고정하는 게 아니라 "이쪽을 보여드릴게요" 정도의
   // 안내용 카메라 이동입니다.
   function flyToEmpireTerritory(empireKey){
@@ -1975,7 +1993,7 @@
     const lat = Math.atan2(sz, Math.sqrt(sx * sx + sy * sy)) * 180 / Math.PI;
     const lng = Math.atan2(sy, sx) * 180 / Math.PI;
     const maxSpread = Math.max(...reps.map(r => angularDistDeg(lat, lng, r.lat, r.lng)));
-    const altitude = Math.min(3.2, Math.max(1.3, maxSpread / 22));
+    const altitude = EMPIRE_ALTITUDE_OVERRIDE[empireKey] || Math.min(3.2, Math.max(1.3, maxSpread / 22));
     setAutoRotate(false);
     worldGlobe.pointOfView({ lat, lng, altitude }, 1600);
   }
