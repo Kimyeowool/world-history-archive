@@ -1850,7 +1850,14 @@
     ottomanEarly:        '#009900',
     ottomanPostConquest: '#009900',
     vikingHomeland: '#002664',
-    vikingReach:    '#F20C0C'
+    vikingReach:    '#F20C0C',
+    greecePeloponnesian: '#0D5EAF',
+    englandHYW:       '#E60001',
+    franceHYW:        '#0D5AF4',
+    englandFranceUnionHYW: '#E60001',
+    goryeo:  '#E7E7E7',
+    khitan:  '#004DAF',
+    jurchen: '#004DAF'
   };
   const EMPIRE_COUNTRIES = {
     // 로마 제국 — 트라야누스 황제 시기(서기 117년) 최대 영토
@@ -1970,7 +1977,21 @@
     // 바이킹의 본거지 — 스칸디나비아
     vikingHomeland: ['Sweden','Norway','Denmark'],
     // 바이킹이 약탈·정착·지배한 지역(데인로, 노르망디, 아이슬란드, 키예프 루스 등)
-    vikingReach: ['United Kingdom','Ireland','France','Iceland','Russia','Ukraine','Belarus']
+    vikingReach: ['United Kingdom','Ireland','France','Iceland','Russia','Ukraine','Belarus'],
+    // 펠로폰네소스 전쟁 — 그리스 내전이므로 그리스 본토
+    greecePeloponnesian: ['Greece'],
+    // 백년전쟁 — 잉글랜드/프랑스 왕국(양측 모두 오늘날의 한 국가에 대응)
+    englandHYW: ['United Kingdom'],
+    franceHYW: ['France'],
+    // 1420년 트루아 조약 — 헨리 5세가 프랑스 왕위 계승자로 인정받아
+    // 명목상 잉글랜드가 프랑스 왕관까지 아우르게 된 전쟁 최대 판도
+    englandFranceUnionHYW: ['United Kingdom','France'],
+    // 고려의 대외 항쟁 — 고려(한반도)와, 시대별로 맞선 세 북방 세력
+    goryeo: ['South Korea','North Korea'],
+    // 거란(요) — 만주와 몽골 초원을 아우른 영역
+    khitan: ['China','Mongolia'],
+    // 여진(금) — 만주에서 일어나 화북까지 정복한 영역
+    jurchen: ['China']
   };
   // 마지막으로 체크한 제국이 겹치는 국가 위에 덮어씌워지도록, 활성화 순서를
   // 따로 기록해서 colorForCountry에서 "가장 최근에 켠 레이어"를 우선합니다.
@@ -2004,6 +2025,10 @@
     '전쟁사>고대 전쟁사 (~BC 3000~AD 5세기)>그리스-페르시아 전쟁': { layers: [
       { layerId: 'empire-greece', empireKey: 'greece' },
       { layerId: 'empire-persia-greco', empireKey: 'persiaGreco' }
+    ] },
+    // 펠로폰네소스 전쟁 — 그리스 내전이므로 그리스 본토만 표시
+    '전쟁사>고대 전쟁사 (~BC 3000~AD 5세기)>펠로폰네소스 전쟁': { layers: [
+      { layerId: 'empire-greece-pelop', empireKey: 'greecePeloponnesian' }
     ] },
     '전쟁사>고대 전쟁사 (~BC 3000~AD 5세기)>로마의 정복전쟁': { layers: [
       { layerId: 'empire-rome', empireKey: 'rome' }
@@ -2056,6 +2081,49 @@
     '전쟁사>중세 전쟁사 (5~15세기)>성곽과 공성전 — 축성술과 공성무기의 발달>바이킹의 파리 공방전': { layers: [
       { layerId: 'empire-viking-home', empireKey: 'vikingHomeland' },
       { layerId: 'empire-viking-reach', empireKey: 'vikingReach' }
+    ] },
+    // 백년전쟁 — 기본값(최상위 페이지·크레시/푸아티에·잔 다르크)은 잉글랜드와
+    // 프랑스가 각자의 영토로 나뉘어 표시됩니다. '아쟁쿠르와 전쟁의 종결'
+    // 하위 페이지만 예외로, 1420년 트루아 조약으로 잉글랜드가 프랑스 왕위
+    // 계승권까지 인정받은 전쟁 역사상 최대 판도를 보여준 뒤(하위의
+    // '유산'에서는 프랑스가 대륙 영토 대부분을 되찾은 종전 후 상태로 다시
+    // 나뉩니다).
+    '전쟁사>중세 전쟁사 (5~15세기)>백년전쟁': { layers: [
+      { layerId: 'empire-england-hyw', empireKey: 'englandHYW' },
+      { layerId: 'empire-france-hyw', empireKey: 'franceHYW' }
+    ] },
+    '전쟁사>중세 전쟁사 (5~15세기)>백년전쟁>아쟁쿠르와 전쟁의 종결': { layers: [
+      { layerId: 'empire-england-hyw', empireKey: 'englandFranceUnionHYW' }
+    ] },
+    '전쟁사>중세 전쟁사 (5~15세기)>백년전쟁>유산': { layers: [
+      { layerId: 'empire-england-hyw', empireKey: 'englandHYW' },
+      { layerId: 'empire-france-hyw', empireKey: 'franceHYW' }
+    ] },
+    // 고려의 대외 항쟁 — 최상위 페이지는 세 북방 세력(거란·여진·몽골)의
+    // 영토를 한꺼번에 개요로 보여주고(셋 다 같은 색이라 서로 구분되진
+    // 않지만, 고려와는 뚜렷이 구분됩니다), 하위 페이지는 그 시대에 맞선
+    // 적국 하나만 남깁니다.
+    '전쟁사>중세 전쟁사 (5~15세기)>고려의 대외 항쟁': { layers: [
+      { layerId: 'empire-goryeo', empireKey: 'goryeo' },
+      { layerId: 'empire-khitan', empireKey: 'khitan' },
+      { layerId: 'empire-jurchen', empireKey: 'jurchen' },
+      { layerId: 'empire-mongol', empireKey: 'mongol' }
+    ] },
+    '전쟁사>중세 전쟁사 (5~15세기)>고려의 대외 항쟁>거란의 침입과 귀주대첩': { layers: [
+      { layerId: 'empire-goryeo', empireKey: 'goryeo' },
+      { layerId: 'empire-khitan', empireKey: 'khitan' }
+    ] },
+    '전쟁사>중세 전쟁사 (5~15세기)>고려의 대외 항쟁>여진 정벌과 별무반': { layers: [
+      { layerId: 'empire-goryeo', empireKey: 'goryeo' },
+      { layerId: 'empire-jurchen', empireKey: 'jurchen' }
+    ] },
+    '전쟁사>중세 전쟁사 (5~15세기)>고려의 대외 항쟁>몽골의 침입과 삼별초의 항쟁': { layers: [
+      { layerId: 'empire-goryeo', empireKey: 'goryeo' },
+      { layerId: 'empire-mongol', empireKey: 'mongol' }
+    ] },
+    '전쟁사>중세 전쟁사 (5~15세기)>고려의 대외 항쟁>유산': { layers: [
+      { layerId: 'empire-goryeo', empireKey: 'goryeo' },
+      { layerId: 'empire-mongol', empireKey: 'mongol' }
     ] }
     // 콘스탄티노플 함락과 대포의 등장 페이지는 여기 등록하지 않습니다 —
     // '점령 전/후' 토글이 있는 특수 페이지라, updateConstantinopleToggle이
