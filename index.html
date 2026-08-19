@@ -1836,7 +1836,14 @@
     soviet:    '#CC0000',
     persia:    '#3800D3',
     britain:   '#C8102E',
-    macedon:   '#D6B429'
+    macedon:   '#D6B429',
+    greece:       '#AB92A8',
+    persiaGreco:  '#848D7C',
+    china:        '#996633',
+    islamMedina:   '#009900',
+    islamArabia:   '#009900',
+    islamRashidun: '#009900',
+    islamUmayyad:  '#009900'
   };
   const EMPIRE_COUNTRIES = {
     // 로마 제국 — 트라야누스 황제 시기(서기 117년) 최대 영토
@@ -1907,6 +1914,37 @@
       'Greece','Macedonia','Albania','Bulgaria','Turkey','Syria','Lebanon',
       'Israel','Palestine','Jordan','Egypt','Iraq','Iran','Armenia','Azerbaijan',
       'Turkmenistan','Uzbekistan','Tajikistan','Afghanistan','Pakistan','Kuwait'
+    ],
+    // 그리스-페르시아 전쟁 당시 그리스 본토(자유 폴리스 진영)
+    greece: ['Greece'],
+    // 그리스-페르시아 전쟁 당시 페르시아 제국(다리우스 1세~크세르크세스 1세) —
+    // 'persia'와 같은 시기지만, 그리스 본토는 끝내 정복하지 못했으므로
+    // 별도 색으로 겹쳐 보여줄 때 그리스 본토를 뺀 목록을 씁니다
+    persiaGreco: [
+      'Iran','Iraq','Turkey','Syria','Lebanon','Israel','Palestine','Jordan','Egypt',
+      'Libya','Saudi Arabia','Armenia','Georgia','Azerbaijan','Turkmenistan',
+      'Uzbekistan','Tajikistan','Kyrgyzstan','Afghanistan','Pakistan',
+      'Bulgaria','Macedonia','Bahrain','Kuwait','Oman','United Arab Emirates','Cyprus'
+    ],
+    // 춘추전국시대 — 중국 대륙
+    china: ['China'],
+    // 이슬람의 발흥과 정복전쟁: 시대별 영토 확장 단계
+    // 622~624년, 메디나 공동체 초기 — 아라비아 서부의 한 지역
+    islamMedina: ['Saudi Arabia'],
+    // 630~632년, 무함마드 생애 말년 — 아라비아반도 통일
+    islamArabia: ['Saudi Arabia','Yemen','Oman','United Arab Emirates','Qatar','Kuwait','Bahrain'],
+    // 632~661년, 정통 칼리프 시대 — 사산조 페르시아 전역 정복 + 비잔티움 영토 절반 탈취
+    islamRashidun: [
+      'Saudi Arabia','Yemen','Oman','United Arab Emirates','Qatar','Kuwait','Bahrain',
+      'Syria','Lebanon','Israel','Palestine','Jordan','Iraq','Iran','Egypt','Libya'
+    ],
+    // 661~750년, 우마이야 왕조 — 이베리아반도부터 인더스강 유역까지, 이슬람 세력의 역사상 최대 영토
+    islamUmayyad: [
+      'Saudi Arabia','Yemen','Oman','United Arab Emirates','Qatar','Kuwait','Bahrain',
+      'Syria','Lebanon','Israel','Palestine','Jordan','Iraq','Iran','Egypt','Libya',
+      'Tunisia','Algeria','Morocco','Spain','Portugal',
+      'Turkmenistan','Uzbekistan','Tajikistan','Kyrgyzstan','Afghanistan','Pakistan',
+      'Armenia','Azerbaijan','Georgia'
     ]
   };
   // 마지막으로 체크한 제국이 겹치는 국가 위에 덮어씌워지도록, 활성화 순서를
@@ -1929,32 +1967,105 @@
      자동으로 표시되고, 페이지를 벗어나면 사라집니다. (종교 오버레이와
      동일한 페이지↔레이어 매핑 방식 — updateReligionOverlay 참고)
      ===================================================================== */
+  // 값이 'layers' 배열인 이유: 그리스-페르시아 전쟁처럼 한 페이지에서
+  // 두 세력의 영토를 동시에 겹쳐 보여줘야 하는 경우가 있기 때문입니다.
+  // 키는 페이지 경로(categoryStack.join('>'))이며, 그 페이지의 하위
+  // 페이지에 들어가도 더 구체적인 키가 따로 없으면 그대로 유지됩니다
+  // (예: '...>로마의 정복전쟁'을 등록해두면 '...>로마의 정복전쟁>카이사르의
+  // 갈리아 정복'에서도 자동으로 이어서 표시됩니다). 이슬람의 발흥과
+  // 정복전쟁처럼 하위 페이지마다 영토 크기가 달라져야 하면, 그 하위
+  // 페이지 경로를 더 구체적인 키로 따로 등록해 상위 설정을 덮어씁니다.
   const EMPIRE_PAGE_LAYERS = {
-    '전쟁사>고대 전쟁사 (~BC 3000~AD 5세기)>로마의 정복전쟁': { layerId: 'empire-rome', empireKey: 'rome' },
-    '전쟁사>고대 전쟁사 (~BC 3000~AD 5세기)>알렉산드로스의 정복전쟁': { layerId: 'empire-macedon', empireKey: 'macedon' }
+    '전쟁사>고대 전쟁사 (~BC 3000~AD 5세기)>그리스-페르시아 전쟁': { layers: [
+      { layerId: 'empire-greece', empireKey: 'greece' },
+      { layerId: 'empire-persia-greco', empireKey: 'persiaGreco' }
+    ] },
+    '전쟁사>고대 전쟁사 (~BC 3000~AD 5세기)>로마의 정복전쟁': { layers: [
+      { layerId: 'empire-rome', empireKey: 'rome' }
+    ] },
+    '전쟁사>고대 전쟁사 (~BC 3000~AD 5세기)>알렉산드로스의 정복전쟁': { layers: [
+      { layerId: 'empire-macedon', empireKey: 'macedon' }
+    ] },
+    '전쟁사>고대 전쟁사 (~BC 3000~AD 5세기)>춘추전국시대와 손자병법': { layers: [
+      { layerId: 'empire-china', empireKey: 'china' }
+    ] },
+    '전쟁사>중세 전쟁사 (5~15세기)>몽골의 정복전쟁': { layers: [
+      { layerId: 'empire-mongol', empireKey: 'mongol' }
+    ] },
+    // 이슬람의 발흥과 정복전쟁 최상위 페이지 — 최대 영토(우마이야 왕조 시기)를 기본값으로 표시
+    '전쟁사>중세 전쟁사 (5~15세기)>이슬람의 발흥과 정복전쟁': { layers: [
+      { layerId: 'empire-islam', empireKey: 'islamUmayyad' }
+    ] },
+    // 하위 페이지마다 그 시대에 맞는 영토 크기로 덮어씁니다
+    '전쟁사>중세 전쟁사 (5~15세기)>이슬람의 발흥과 정복전쟁>바드르 전투 — 신생 공동체의 첫 승리': { layers: [
+      { layerId: 'empire-islam', empireKey: 'islamMedina' }
+    ] },
+    '전쟁사>중세 전쟁사 (5~15세기)>이슬람의 발흥과 정복전쟁>메카 정복과 아라비아 통일': { layers: [
+      { layerId: 'empire-islam', empireKey: 'islamArabia' }
+    ] },
+    '전쟁사>중세 전쟁사 (5~15세기)>이슬람의 발흥과 정복전쟁>정통 칼리프 시대의 대정복': { layers: [
+      { layerId: 'empire-islam', empireKey: 'islamRashidun' }
+    ] },
+    '전쟁사>중세 전쟁사 (5~15세기)>이슬람의 발흥과 정복전쟁>우마이야 왕조와 유럽으로의 진출': { layers: [
+      { layerId: 'empire-islam', empireKey: 'islamUmayyad' }
+    ] },
+    '전쟁사>중세 전쟁사 (5~15세기)>이슬람의 발흥과 정복전쟁>유산': { layers: [
+      { layerId: 'empire-islam', empireKey: 'islamUmayyad' }
+    ] }
   };
 
-  // 방금 카메라를 이동시켜 보여준 제국 레이어 — 같은 페이지에 머무는 동안
+  // 모든 페이지 레이어 항목의 layerId를 한데 모은 목록 — 페이지를 벗어날 때
+  // 켜져 있던 레이어를 빠짐없이 꺼야 하므로 미리 펼쳐둡니다.
+  const ALL_EMPIRE_LAYER_IDS = Array.from(new Set(
+    Object.values(EMPIRE_PAGE_LAYERS).flatMap(p => p.layers.map(l => l.layerId))
+  ));
+
+  // 지구본 중심을 자동으로 계산하는 대신 고정된 위치를 보여주고 싶은 제국 —
+  // 몽골 제국은 정복 영토 전체의 무게중심을 잡으면 카자흐스탄 언저리를
+  // 비추게 되므로, 사용자 요청대로 오늘날의 몽골 국가를 기준으로 고정합니다.
+  const EMPIRE_ORIGIN_OVERRIDE = {
+    mongol: { lat: 46.86, lng: 103.85, altitude: 1.4 },
+    // 'China' 폴리곤의 대표 위치(featureRepresentativePoint)가 하이난섬 쪽으로
+    // 잡히는 경우가 있어, 대륙 중심부에 고정된 시점을 직접 지정합니다
+    china: { lat: 35.0, lng: 103.5, altitude: 1.9 }
+  };
+
+  // 방금 카메라를 이동시켜 보여준 페이지 키 — 같은 페이지에 머무는 동안
   // (재렌더링 등으로) updateEmpireOverlay가 다시 불려도 매번 카메라가
   // 다시 튀지 않도록, "새로 들어온 페이지일 때만" 비행하게 막아줍니다.
-  let lastFlownEmpireLayer = null;
+  let lastFlownEmpirePageKey = null;
+
+  // pageKey와 정확히 같거나, pageKey가 그 하위 경로(prefix + '>')이면 매치로
+  // 봅니다. 여러 항목이 매치되면 가장 긴(가장 구체적인) 키를 우선합니다 —
+  // 이슬람의 발흥과 정복전쟁의 하위 페이지별 개별 설정이 상위 설정을 덮어쓰는 방식입니다.
+  function findActiveEmpirePage(pageKey){
+    let best = null, bestLen = -1;
+    for (const key in EMPIRE_PAGE_LAYERS){
+      if (pageKey === key || pageKey.startsWith(key + '>')){
+        if (key.length > bestLen){ best = EMPIRE_PAGE_LAYERS[key]; bestLen = key.length; }
+      }
+    }
+    return best ? { key: Object.keys(EMPIRE_PAGE_LAYERS).find(k => EMPIRE_PAGE_LAYERS[k] === best && k.length === bestLen), page: best } : null;
+  }
 
   function updateEmpireOverlay(){
     const pageKey = categoryStack.join('>');
-    const activePage = EMPIRE_PAGE_LAYERS[pageKey];
+    const active = findActiveEmpirePage(pageKey);
 
-    // 현재 매핑된 페이지가 아니면 이전에 자동으로 켜졌던 제국 레이어를 끕니다
-    Object.values(EMPIRE_PAGE_LAYERS).forEach(p => {
-      if (!activePage || p.layerId !== activePage.layerId) clearOverlayLayer(p.layerId);
-    });
-    if (!activePage){
-      lastFlownEmpireLayer = null;
+    // 현재 매핑된 페이지가 아니면 이전에 자동으로 켜졌던 제국 레이어를 전부 끕니다
+    const activeLayerIds = new Set(active ? active.page.layers.map(l => l.layerId) : []);
+    ALL_EMPIRE_LAYER_IDS.forEach(id => { if (!activeLayerIds.has(id)) clearOverlayLayer(id); });
+
+    if (!active){
+      lastFlownEmpirePageKey = null;
       return;
     }
-    setOverlayLayer(activePage.layerId, EMPIRE_COUNTRIES[activePage.empireKey] || [], EMPIRE_COLORS[activePage.empireKey]);
-    if (lastFlownEmpireLayer !== activePage.layerId){
-      lastFlownEmpireLayer = activePage.layerId;
-      flyToEmpireTerritory(activePage.empireKey);
+    active.page.layers.forEach(l => {
+      setOverlayLayer(l.layerId, EMPIRE_COUNTRIES[l.empireKey] || [], EMPIRE_COLORS[l.empireKey]);
+    });
+    if (lastFlownEmpirePageKey !== active.key){
+      lastFlownEmpirePageKey = active.key;
+      flyToEmpireTerritory(active.page.layers.map(l => l.empireKey));
     }
   }
 
@@ -1974,11 +2085,22 @@
   // 컨트롤(드래그 회전)은 그대로 살아있어 사용자가 바로 이어서 움직일 수
   // 있습니다 — 시점을 강제로 고정하는 게 아니라 "이쪽을 보여드릴게요" 정도의
   // 안내용 카메라 이동입니다.
-  function flyToEmpireTerritory(empireKey){
+  function flyToEmpireTerritory(empireKeys){
     if (!worldGlobe) return;
     const globeEl = document.getElementById('globe-container');
     if (!globeEl || globeEl.style.display === 'none') return;
-    const names = new Set(EMPIRE_COUNTRIES[empireKey] || []);
+    const keys = Array.isArray(empireKeys) ? empireKeys : [empireKeys];
+
+    // 단일 세력이고 고정 시점이 지정돼 있으면(예: 몽골 제국 → 오늘날의 몽골)
+    // 무게중심 계산 없이 그 위치로 바로 이동합니다.
+    if (keys.length === 1 && EMPIRE_ORIGIN_OVERRIDE[keys[0]]){
+      const origin = EMPIRE_ORIGIN_OVERRIDE[keys[0]];
+      setAutoRotate(false);
+      worldGlobe.pointOfView({ lat: origin.lat, lng: origin.lng, altitude: origin.altitude || RELIGION_DEFAULT_ALTITUDE }, 1600);
+      return;
+    }
+
+    const names = new Set(keys.flatMap(k => EMPIRE_COUNTRIES[k] || []));
     if (!names.size || !globeCountryFeatures.length) return;
     const reps = globeCountryFeatures.filter(f => names.has(f.properties.name)).map(featureRepresentativePoint);
     if (!reps.length) return;
@@ -1993,7 +2115,8 @@
     const lat = Math.atan2(sz, Math.sqrt(sx * sx + sy * sy)) * 180 / Math.PI;
     const lng = Math.atan2(sy, sx) * 180 / Math.PI;
     const maxSpread = Math.max(...reps.map(r => angularDistDeg(lat, lng, r.lat, r.lng)));
-    const altitude = EMPIRE_ALTITUDE_OVERRIDE[empireKey] || Math.min(3.2, Math.max(1.3, maxSpread / 22));
+    const altitudeOverride = keys.length === 1 ? EMPIRE_ALTITUDE_OVERRIDE[keys[0]] : null;
+    const altitude = altitudeOverride || Math.min(3.2, Math.max(1.3, maxSpread / 22));
     setAutoRotate(false);
     worldGlobe.pointOfView({ lat, lng, altitude }, 1600);
   }
@@ -2045,7 +2168,7 @@
     artworkImages = [];
     Object.values(RELIGION_PAGE_LAYERS).forEach(p => clearOverlayLayer(p.layerId));
     Object.keys(SECT_COLORS).forEach(sect => clearOverlayLayer('sect-' + sect));
-    Object.values(EMPIRE_PAGE_LAYERS).forEach(p => clearOverlayLayer(p.layerId));
+    ALL_EMPIRE_LAYER_IDS.forEach(id => clearOverlayLayer(id));
     setTimeout(() => {
       categoryStack = [];
       const listEl = document.getElementById('category-list');
