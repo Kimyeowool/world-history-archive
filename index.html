@@ -1370,6 +1370,7 @@
     updateArtworkPanel(node);
     updateReligionOverlay();
     updateEmpireOverlay();
+    updateConstantinopleToggle();
     renderCategoryNav();
   }
 
@@ -1843,7 +1844,13 @@
     islamMedina:   '#009900',
     islamArabia:   '#009900',
     islamRashidun: '#009900',
-    islamUmayyad:  '#009900'
+    islamUmayyad:  '#009900',
+    // 009900은 이 프로젝트에서 앞으로 이슬람 세력을 나타내는 기본색입니다
+    islamCrusades:      '#009900',
+    ottomanEarly:        '#009900',
+    ottomanPostConquest: '#009900',
+    vikingHomeland: '#002664',
+    vikingReach:    '#F20C0C'
   };
   const EMPIRE_COUNTRIES = {
     // 로마 제국 — 트라야누스 황제 시기(서기 117년) 최대 영토
@@ -1945,7 +1952,25 @@
       'Tunisia','Algeria','Morocco','Spain','Portugal',
       'Turkmenistan','Uzbekistan','Tajikistan','Kyrgyzstan','Afghanistan','Pakistan',
       'Armenia','Azerbaijan','Georgia'
-    ]
+    ],
+    // 십자군 전쟁 시기(1096~1291년) 이슬람 세력 — 셀주크 튀르크와
+    // 파티마·아이유브 왕조(이집트) 중심. 동로마(byzantium) 목록과 겹치는
+    // 국가(터키·시리아·레바논·이스라엘·팔레스타인·요르단·이집트·리비아)는
+    // 이 레이어가 먼저 칠해지도록 페이지 설정에서 순서를 앞에 둡니다
+    islamCrusades: ['Turkey','Syria','Iraq','Iran','Egypt','Israel','Palestine','Jordan','Lebanon','Saudi Arabia','Libya'],
+    // 콘스탄티노플 함락(1453) 이전 오스만 제국 — 아나톨리아와 발칸 대부분
+    // (그리스는 당시까지도 명목상 동로마 잔존 영토였으므로 제외)
+    ottomanEarly: ['Turkey','Bulgaria','Serbia','Macedonia','Albania','Bosnia and Herz.'],
+    // 콘스탄티노플 함락 이후 — 오스만이 동로마(byzantium 목록 전체)를 흡수한 영토
+    ottomanPostConquest: [
+      'Turkey','Bulgaria','Serbia','Macedonia','Albania','Bosnia and Herz.',
+      'Greece','Romania','Cyprus','Syria','Lebanon','Israel','Palestine','Jordan',
+      'Egypt','Libya','Tunisia','Italy','Malta'
+    ],
+    // 바이킹의 본거지 — 스칸디나비아
+    vikingHomeland: ['Sweden','Norway','Denmark'],
+    // 바이킹이 약탈·정착·지배한 지역(데인로, 노르망디, 아이슬란드, 키예프 루스 등)
+    vikingReach: ['United Kingdom','Ireland','France','Iceland','Russia','Ukraine','Belarus']
   };
   // 마지막으로 체크한 제국이 겹치는 국가 위에 덮어씌워지도록, 활성화 순서를
   // 따로 기록해서 colorForCountry에서 "가장 최근에 켠 레이어"를 우선합니다.
@@ -1992,6 +2017,22 @@
     '전쟁사>중세 전쟁사 (5~15세기)>몽골의 정복전쟁': { layers: [
       { layerId: 'empire-mongol', empireKey: 'mongol' }
     ] },
+    // 십자군 전쟁 — 서유럽(신성로마제국 기준), 동유럽(동로마/비잔티움 기준),
+    // 이슬람 세력이 동시에 표시됩니다. 이슬람 레이어를 먼저 설정해두면
+    // 동로마 목록과 겹치는 국가(터키·시리아·이집트 등 — 동로마 목록은
+    // 555년 유스티니아누스 시기 최대 영토라 겹칩니다)에서 이슬람 색이
+    // 우선 칠해집니다(colorForCountry는 먼저 등록된 레이어를 우선함).
+    '전쟁사>중세 전쟁사 (5~15세기)>십자군 전쟁': {
+      layers: [
+        { layerId: 'empire-islam', empireKey: 'islamCrusades' },
+        { layerId: 'empire-hre', empireKey: 'hre' },
+        { layerId: 'empire-byzantium', empireKey: 'byzantium' }
+      ],
+      origin: { lat: 31.7683, lng: 35.2137, altitude: 2.2 }, // 예루살렘을 중심으로
+      points: [
+        { lat: 31.7683, lng: 35.2137, color: '#F77C5F', label: '예루살렘' }
+      ]
+    },
     // 이슬람의 발흥과 정복전쟁 최상위 페이지 — 최대 영토(우마이야 왕조 시기)를 기본값으로 표시
     '전쟁사>중세 전쟁사 (5~15세기)>이슬람의 발흥과 정복전쟁': { layers: [
       { layerId: 'empire-islam', empireKey: 'islamUmayyad' }
@@ -2011,14 +2052,107 @@
     ] },
     '전쟁사>중세 전쟁사 (5~15세기)>이슬람의 발흥과 정복전쟁>유산': { layers: [
       { layerId: 'empire-islam', empireKey: 'islamUmayyad' }
+    ] },
+    '전쟁사>중세 전쟁사 (5~15세기)>성곽과 공성전 — 축성술과 공성무기의 발달>바이킹의 파리 공방전': { layers: [
+      { layerId: 'empire-viking-home', empireKey: 'vikingHomeland' },
+      { layerId: 'empire-viking-reach', empireKey: 'vikingReach' }
     ] }
+    // 콘스탄티노플 함락과 대포의 등장 페이지는 여기 등록하지 않습니다 —
+    // '점령 전/후' 토글이 있는 특수 페이지라, updateConstantinopleToggle이
+    // 이 페이지의 레이어를 전적으로 직접 관리합니다(아래 참고).
   };
+
+  // 콘스탄티노플 함락 페이지 전용 — '점령 전 영토'/'점령 후 영토' 두 상태를
+  // 오가는 토글의 레이어 구성
+  const CONSTANTINOPLE_PAGE_KEY = '전쟁사>중세 전쟁사 (5~15세기)>성곽과 공성전 — 축성술과 공성무기의 발달>콘스탄티노플 함락과 대포의 등장';
+  const CONSTANTINOPLE_STATES = {
+    before: [
+      { layerId: 'empire-ottoman-before', empireKey: 'ottomanEarly' },
+      { layerId: 'empire-byzantium', empireKey: 'byzantium' }
+    ],
+    after: [
+      { layerId: 'empire-ottoman-after', empireKey: 'ottomanPostConquest' }
+    ]
+  };
+  const CONSTANTINOPLE_ORIGIN = { lat: 41.0082, lng: 28.9784, altitude: 1.4 }; // 콘스탄티노플(이스탄불) 중심
+  let constantinopleToggleState = 'before';
+  let lastFlownConstantinople = false;
+
+  function setConstantinopleState(state){
+    constantinopleToggleState = state;
+    // 두 상태의 레이어를 전부 먼저 지운 뒤, 선택된 상태의 레이어만 켭니다
+    Object.values(CONSTANTINOPLE_STATES).flat().forEach(l => clearOverlayLayer(l.layerId));
+    CONSTANTINOPLE_STATES[state].forEach(l => setOverlayLayer(l.layerId, EMPIRE_COUNTRIES[l.empireKey] || [], EMPIRE_COLORS[l.empireKey]));
+    const beforeBtn = document.getElementById('constantinople-toggle-before');
+    const afterBtn = document.getElementById('constantinople-toggle-after');
+    if (beforeBtn) beforeBtn.classList.toggle('active', state === 'before');
+    if (afterBtn) afterBtn.classList.toggle('active', state === 'after');
+  }
+  window.setConstantinopleState = setConstantinopleState;
+
+  // 콘스탄티노플 페이지에 들어오면 토글 버튼 두 개를 본문 아래에 작게
+  // 붙이고, 페이지를 벗어나면 치웁니다. updateEmpireOverlay는 이 페이지를
+  // 모르므로(EMPIRE_PAGE_LAYERS에 없음) 재렌더링 때마다 이 함수가 현재
+  // 토글 상태의 레이어를 매번 다시 켜서, 다른 이유로 화면이 다시 그려져도
+  // 표시가 사라지지 않게 스스로 복구합니다.
+  function updateConstantinopleToggle(){
+    const existing = document.getElementById('constantinople-toggle-row');
+    const pageKey = categoryStack.join('>');
+    if (pageKey !== CONSTANTINOPLE_PAGE_KEY){
+      if (existing) existing.remove();
+      // 레이어 정리는 여기서 하지 않습니다 — updateEmpireOverlay가 이미
+      // ALL_EMPIRE_LAYER_IDS 기준으로 "현재 페이지에 필요 없는 레이어"를
+      // 전부 정리했습니다. 'empire-byzantium'처럼 이 토글과 레이어 ID를
+      // 공유하는 다른 페이지(십자군 전쟁 등)가 방금 켜놓은 레이어를 여기서
+      // 무조건 지워버리면 그 페이지의 표시가 깨집니다.
+      constantinopleToggleState = 'before'; // 다음에 다시 들어올 때는 항상 "점령 전"부터
+      lastFlownConstantinople = false;
+      return;
+    }
+    if (!existing){
+      const listEl = document.getElementById('category-list');
+      if (listEl){
+        const row = document.createElement('div');
+        row.id = 'constantinople-toggle-row';
+        row.className = 'fade-item';
+        row.style.cssText = 'display:flex;gap:14px;margin-top:10px;font-size:11px;letter-spacing:0.02em;opacity:0.85;';
+        const makeBtn = (id, text, state) => {
+          const span = document.createElement('span');
+          span.id = id;
+          span.textContent = text;
+          span.style.cssText = 'cursor:pointer;padding-bottom:2px;border-bottom:1px solid transparent;transition:opacity .2s,border-color .2s;';
+          span.addEventListener('click', () => setConstantinopleState(state));
+          return span;
+        };
+        row.appendChild(makeBtn('constantinople-toggle-before', '점령 전 영토', 'before'));
+        row.appendChild(makeBtn('constantinople-toggle-after', '점령 후 영토', 'after'));
+        const style = document.createElement('style');
+        style.textContent = '#constantinople-toggle-row span.active{opacity:1;border-color:currentColor;font-weight:600;} #constantinople-toggle-row span:not(.active){opacity:0.55;}';
+        row.appendChild(style);
+        listEl.appendChild(row);
+      }
+    }
+    setConstantinopleState(constantinopleToggleState);
+    if (!lastFlownConstantinople){
+      lastFlownConstantinople = true;
+      if (worldGlobe){
+        const globeEl = document.getElementById('globe-container');
+        if (globeEl && globeEl.style.display !== 'none'){
+          setAutoRotate(false);
+          worldGlobe.pointOfView(CONSTANTINOPLE_ORIGIN, 1600);
+        }
+      }
+    }
+  }
 
   // 모든 페이지 레이어 항목의 layerId를 한데 모은 목록 — 페이지를 벗어날 때
   // 켜져 있던 레이어를 빠짐없이 꺼야 하므로 미리 펼쳐둡니다.
-  const ALL_EMPIRE_LAYER_IDS = Array.from(new Set(
-    Object.values(EMPIRE_PAGE_LAYERS).flatMap(p => p.layers.map(l => l.layerId))
-  ));
+  // (콘스탄티노플 토글의 두 layerId는 EMPIRE_PAGE_LAYERS가 아니라
+  // CONSTANTINOPLE_STATES에만 있으므로 따로 추가합니다.)
+  const ALL_EMPIRE_LAYER_IDS = Array.from(new Set([
+    ...Object.values(EMPIRE_PAGE_LAYERS).flatMap(p => p.layers.map(l => l.layerId)),
+    ...Object.values(CONSTANTINOPLE_STATES).flat().map(l => l.layerId)
+  ]));
 
   // 지구본 중심을 자동으로 계산하는 대신 고정된 위치를 보여주고 싶은 제국 —
   // 몽골 제국은 정복 영토 전체의 무게중심을 잡으면 카자흐스탄 언저리를
@@ -2058,15 +2192,32 @@
 
     if (!active){
       lastFlownEmpirePageKey = null;
+      updateGlobePoints([]);
       return;
     }
     active.page.layers.forEach(l => {
       setOverlayLayer(l.layerId, EMPIRE_COUNTRIES[l.empireKey] || [], EMPIRE_COLORS[l.empireKey]);
     });
+    updateGlobePoints(active.page.points || []);
     if (lastFlownEmpirePageKey !== active.key){
       lastFlownEmpirePageKey = active.key;
-      flyToEmpireTerritory(active.page.layers.map(l => l.empireKey));
+      if (active.page.origin){
+        setAutoRotate(false);
+        const globeEl = document.getElementById('globe-container');
+        if (worldGlobe && globeEl && globeEl.style.display !== 'none'){
+          worldGlobe.pointOfView(active.page.origin, 1600);
+        }
+      } else {
+        flyToEmpireTerritory(active.page.layers.map(l => l.empireKey));
+      }
     }
+  }
+
+  // 국가 단위로는 표시할 수 없는 도시 지점(예: 십자군 전쟁의 예루살렘)을
+  // 지구본에 마커로 찍습니다. 페이지를 벗어나면 빈 배열로 지워집니다.
+  function updateGlobePoints(points){
+    if (!worldGlobe) return;
+    worldGlobe.pointsData(points || []);
   }
 
   // 로마 제국처럼 영토가 동서로 워낙 넓게 퍼진 경우, 전 영토를 화면에 다
@@ -2169,6 +2320,11 @@
     Object.values(RELIGION_PAGE_LAYERS).forEach(p => clearOverlayLayer(p.layerId));
     Object.keys(SECT_COLORS).forEach(sect => clearOverlayLayer('sect-' + sect));
     ALL_EMPIRE_LAYER_IDS.forEach(id => clearOverlayLayer(id));
+    const constantinopleRow = document.getElementById('constantinople-toggle-row');
+    if (constantinopleRow) constantinopleRow.remove();
+    constantinopleToggleState = 'before';
+    lastFlownConstantinople = false;
+    updateGlobePoints([]);
     setTimeout(() => {
       categoryStack = [];
       const listEl = document.getElementById('category-list');
@@ -2734,7 +2890,17 @@
       })
       .onPolygonClick(f => {
         toggleCountry(f.properties.name);
-      });
+      })
+      // 도시 단위 지점 표시(예: 예루살렘) — 국가 단위 색칠로는 나타낼 수 없는
+      // 특정 지점을 마커로 찍습니다. updateGlobePoints()가 페이지별로 채웁니다.
+      .pointsData([])
+      .pointLat('lat')
+      .pointLng('lng')
+      .pointColor('color')
+      .pointAltitude(0.015)
+      .pointRadius(0.35)
+      .pointLabel('label')
+      .pointResolution(24);
 
     // 성능 추가 최적화: 픽셀비율을 더 낮춰 GPU 픽셀 채우기 비용을 줄입니다
     // (고해상도 디스플레이일수록 효과가 큼 — 시각적으로는 거의 티가 안 남)
