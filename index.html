@@ -1857,7 +1857,15 @@
     englandFranceUnionHYW: '#E60001',
     goryeo:  '#E7E7E7',
     khitan:  '#004DAF',
-    jurchen: '#004DAF'
+    jurchen: '#004DAF',
+    // 제1차 세계대전 — 협상국(연합국)과 동맹국. 이 두 색이 이 프로젝트에서
+    // 앞으로 각각 협상국/동맹국의 기본색입니다.
+    ententeWWI:       '#002654',
+    centralPowersWWI: '#303030',
+    // 서부/동부전선 하위 페이지에서 국가를 하나씩만 남길 때도 같은 색을 유지
+    franceWWI:  '#002654',
+    russiaWWI:  '#002654',
+    germanyWWI: '#303030'
   };
   const EMPIRE_COUNTRIES = {
     // 로마 제국 — 트라야누스 황제 시기(서기 117년) 최대 영토
@@ -1991,7 +1999,14 @@
     // 거란(요) — 만주와 몽골 초원을 아우른 영역
     khitan: ['China','Mongolia'],
     // 여진(금) — 만주에서 일어나 화북까지 정복한 영역
-    jurchen: ['China']
+    jurchen: ['China'],
+    // 제1차 세계대전 — 협상국(주요 유럽 참전국)과 동맹국
+    ententeWWI: ['France','United Kingdom','Russia','Italy','Belgium','Serbia','Romania','Portugal','Greece'],
+    centralPowersWWI: ['Germany','Austria','Hungary','Turkey','Bulgaria'],
+    // 서부전선/동부전선 하위 페이지 — 그 전선의 교전국 한 쌍만 남깁니다
+    franceWWI:  ['France'],
+    russiaWWI:  ['Russia'],
+    germanyWWI: ['Germany']
   };
   // 마지막으로 체크한 제국이 겹치는 국가 위에 덮어씌워지도록, 활성화 순서를
   // 따로 기록해서 colorForCountry에서 "가장 최근에 켠 레이어"를 우선합니다.
@@ -2124,7 +2139,35 @@
     '전쟁사>중세 전쟁사 (5~15세기)>고려의 대외 항쟁>유산': { layers: [
       { layerId: 'empire-goryeo', empireKey: 'goryeo' },
       { layerId: 'empire-mongol', empireKey: 'mongol' }
-    ] }
+    ] },
+    // 제1차 세계대전 최상위 페이지 — 협상국/동맹국 전체 개요, 오스트리아를 중심으로
+    '전쟁사>현대 전쟁사 (20세기~)>제1차 세계대전': {
+      layers: [
+        { layerId: 'empire-entente-wwi', empireKey: 'ententeWWI' },
+        { layerId: 'empire-central-wwi', empireKey: 'centralPowersWWI' }
+      ],
+      origin: { lat: 47.5162, lng: 14.5501, altitude: 2.6 } // 오스트리아 중심
+    },
+    // 서부전선 — 프랑스·독일만 남기고, 서부전선을 노란색 선으로 별도 표시.
+    // 카메라는 두 나라 사이(로렌·자를란트 접경) 기준
+    '전쟁사>현대 전쟁사 (20세기~)>제1차 세계대전>서부전선의 참호전과 솜 전투': {
+      layers: [
+        { layerId: 'empire-france-wwi', empireKey: 'franceWWI' },
+        { layerId: 'empire-germany-wwi', empireKey: 'germanyWWI' }
+      ],
+      fronts: ['westernFront'],
+      origin: { lat: 49.2, lng: 6.0, altitude: 1.8 } // 독일-프랑스 접경(로렌) 중심
+    },
+    // 동부전선 — 러시아·독일만 남기고, 동부전선과 서부전선을 함께 표시.
+    // 카메라는 독일 중심(두 전선이 동시에 보이도록 고도를 넉넉히)
+    '전쟁사>현대 전쟁사 (20세기~)>제1차 세계대전>동부전선과 전쟁의 확대': {
+      layers: [
+        { layerId: 'empire-russia-wwi', empireKey: 'russiaWWI' },
+        { layerId: 'empire-germany-wwi', empireKey: 'germanyWWI' }
+      ],
+      fronts: ['easternFront', 'westernFront'],
+      origin: { lat: 51.1657, lng: 10.4515, altitude: 2.4 } // 독일 중심
+    }
     // 콘스탄티노플 함락과 대포의 등장 페이지는 여기 등록하지 않습니다 —
     // '점령 전/후' 토글이 있는 특수 페이지라, updateConstantinopleToggle이
     // 이 페이지의 레이어를 전적으로 직접 관리합니다(아래 참고).
@@ -2261,12 +2304,14 @@
     if (!active){
       lastFlownEmpirePageKey = null;
       updateGlobePoints([]);
+      updateGlobePaths([]);
       return;
     }
     active.page.layers.forEach(l => {
       setOverlayLayer(l.layerId, EMPIRE_COUNTRIES[l.empireKey] || [], EMPIRE_COLORS[l.empireKey]);
     });
     updateGlobePoints(active.page.points || []);
+    updateGlobePaths(active.page.fronts || []);
     if (lastFlownEmpirePageKey !== active.key){
       lastFlownEmpirePageKey = active.key;
       if (active.page.origin){
@@ -2286,6 +2331,46 @@
   function updateGlobePoints(points){
     if (!worldGlobe) return;
     worldGlobe.pointsData(points || []);
+  }
+
+  // 국가 단위 색칠로는 표현할 수 없는 전선(戰線)을 지구본 위에 선으로
+  // 그립니다(예: 제1차 세계대전의 서부/동부전선). 좌표는 실제 참호선을
+  // 그대로 딴 것이 아니라, 대략적인 경로를 잇는 근사치입니다.
+  const FRONT_LINES = {
+    // 북해 연안(니우포르트)에서 스위스 국경(벨포르)까지 이어진 참호선
+    westernFront: {
+      color: '#FFDD00',
+      coords: [
+        [51.15, 2.75],  // 니우포르트 — 북해 연안
+        [50.85, 2.89],  // 이프르
+        [50.29, 2.78],  // 아라스
+        [49.90, 2.50],  // 솜(아미앵 인근)
+        [49.42, 2.83],  // 콩피에뉴
+        [49.25, 4.03],  // 랭스
+        [49.16, 5.38],  // 베르됭
+        [48.89, 5.55],  // 생미엘
+        [48.69, 6.18],  // 낭시
+        [47.64, 6.86]   // 벨포르 — 스위스 국경
+      ]
+    },
+    // 발트해 연안(리가)에서 루마니아 접경까지 — 시기별로 크게 요동친
+    // 전선을 대표적인 경로 하나로 단순화했습니다
+    easternFront: {
+      color: '#FFDD00',
+      coords: [
+        [56.95, 24.11], // 리가
+        [54.68, 25.28], // 빌뉴스
+        [52.12, 26.10], // 핀스크
+        [49.55, 25.60], // 테르노필
+        [48.29, 25.94], // 체르니우치
+        [47.50, 26.50]  // 루마니아 접경
+      ]
+    }
+  };
+  function updateGlobePaths(frontKeys){
+    if (!worldGlobe) return;
+    const data = (frontKeys || []).map(k => FRONT_LINES[k]).filter(Boolean);
+    worldGlobe.pathsData(data);
   }
 
   // 로마 제국처럼 영토가 동서로 워낙 넓게 퍼진 경우, 전 영토를 화면에 다
@@ -2393,6 +2478,7 @@
     constantinopleToggleState = 'before';
     lastFlownConstantinople = false;
     updateGlobePoints([]);
+    updateGlobePaths([]);
     setTimeout(() => {
       categoryStack = [];
       const listEl = document.getElementById('category-list');
@@ -2968,7 +3054,18 @@
       .pointAltitude(0.015)
       .pointRadius(0.35)
       .pointLabel('label')
-      .pointResolution(24);
+      .pointResolution(24)
+      // 전선(戰線) 등 국가 색칠로 표현할 수 없는 선을 그리는 레이어 —
+      // updateGlobePaths()가 페이지별로 채웁니다.
+      .pathsData([])
+      .pathPoints('coords')
+      .pathPointLat(p => p[0])
+      .pathPointLng(p => p[1])
+      .pathColor(d => d.color)
+      .pathStroke(1.4)
+      .pathDashLength(1)
+      .pathDashGap(0)
+      .pathTransitionDuration(800);
 
     // 성능 추가 최적화: 픽셀비율을 더 낮춰 GPU 픽셀 채우기 비용을 줄입니다
     // (고해상도 디스플레이일수록 효과가 큼 — 시각적으로는 거의 티가 안 남)
