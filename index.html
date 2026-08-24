@@ -2340,6 +2340,7 @@
     // 북해 연안(니우포르트)에서 스위스 국경(벨포르)까지 이어진 참호선
     westernFront: {
       color: '#FFDD00',
+      label: '서부전선',
       coords: [
         [51.15, 2.75],  // 니우포르트 — 북해 연안
         [50.85, 2.89],  // 이프르
@@ -2357,6 +2358,7 @@
     // 전선을 대표적인 경로 하나로 단순화했습니다
     easternFront: {
       color: '#FFDD00',
+      label: '동부전선',
       coords: [
         [56.95, 24.11], // 리가
         [54.68, 25.28], // 빌뉴스
@@ -2808,6 +2810,26 @@
     tooltipFlagEl.classList.remove('visible');
   }
 
+  // 전선(예: 서부전선/동부전선) 위에 마우스를 올렸을 때, 같은 툴팁 상자를
+  // 재사용해 국가 이름 대신 전선 이름만 표시합니다(국기·영문명 없음).
+  function showFrontTooltip(label, x, y){
+    if (!tooltipEl || !label) return;
+    tooltipEl.style.left = x + 'px';
+    tooltipEl.style.top = y + 'px';
+    if (tooltipCurrentName !== label){
+      tooltipCurrentName = label;
+      clearTimeout(tooltipNameTimer);
+      clearTimeout(tooltipFlagTimer);
+      tooltipNameEl.classList.remove('visible');
+      tooltipFlagEl.classList.remove('visible');
+      tooltipNameEl.querySelector('.tt-ko').textContent = label;
+      tooltipNameEl.querySelector('.tt-en').textContent = '';
+      tooltipFlagEl.src = '';
+      tooltipNameTimer = setTimeout(() => tooltipNameEl.classList.add('visible'), 60);
+    }
+    tooltipEl.classList.add('visible');
+  }
+
   /* =====================================================================
      지구본 (globe.gl) — 실제 위성 텍스처 + 국가 경계(폴리곤) + 클릭 색상
      ===================================================================== */
@@ -3056,16 +3078,22 @@
       .pointLabel('label')
       .pointResolution(24)
       // 전선(戰線) 등 국가 색칠로 표현할 수 없는 선을 그리는 레이어 —
-      // updateGlobePaths()가 페이지별로 채웁니다.
+      // updateGlobePaths()가 페이지별로 채웁니다. 국가 폴리곤(고도 0.01)보다
+      // 높은 고도에 그려야 국가 색칠 밑에 선이 파묻히지 않습니다.
       .pathsData([])
       .pathPoints('coords')
       .pathPointLat(p => p[0])
       .pathPointLng(p => p[1])
+      .pathPointAlt(0.02)
       .pathColor(d => d.color)
       .pathStroke(1.4)
       .pathDashLength(1)
       .pathDashGap(0)
-      .pathTransitionDuration(800);
+      .pathTransitionDuration(800)
+      .onPathHover(p => {
+        if (p) showFrontTooltip(p.label, lastMouseX, lastMouseY);
+        else hideCountryTooltip();
+      });
 
     // 성능 추가 최적화: 픽셀비율을 더 낮춰 GPU 픽셀 채우기 비용을 줄입니다
     // (고해상도 디스플레이일수록 효과가 큼 — 시각적으로는 거의 티가 안 남)
