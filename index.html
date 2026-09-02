@@ -16,9 +16,15 @@
     --parchment-dim: #b9ad91;
     --land:       #33564d;
     --land-line:  #4d7368;
+    /* 인물/카테고리 패널과 명화 패널이 공유하는 세로 기준값 (아직 최솟값 없는
+       원래 공식 그대로). 뷰포트 높이 자체가 아니라 이 값에서 고정 UI를 뺀
+       "실제 본문 공간"에 최솟값을 걸어야 하므로, 바닥값은 아래 두 소비처에서
+       각자의 고정 UI 크기에 맞춰 따로 적용합니다. */
+    --panel-vh-base: min(85vh, 960px);
     /* 명화 패널의 "허용 최대 범위"(빨간 테두리에 해당). 패널·이미지·프레임이
-       전부 이 하나의 값에서 파생되어야 서로 어긋나지 않습니다. */
-    --artwork-max-h: calc(min(85vh, 960px) - 240px);
+       전부 이 하나의 값에서 파생되어야 서로 어긋나지 않습니다. 280px 최솟값은
+       뷰포트가 짧아져도 초상화가 알아볼 수 없는 크기로 쪼그라들지 않게 합니다. */
+    --artwork-max-h: max(280px, calc(var(--panel-vh-base) - 240px));
   }
   *{box-sizing:border-box; margin:0; padding:0;}
   html,body{height:100%;}
@@ -427,7 +433,7 @@
     top:110px;
     left:38px;
     width:min(560px, 50%);
-    height:calc(min(85vh, 960px) - 200px);
+    height:max(300px, calc(var(--panel-vh-base) - 200px));
     z-index:20;
     text-align:left;
     display:flex;
@@ -563,6 +569,13 @@
     border-top:1px solid rgba(198,161,91,0.3);
   }
   #category-nav:empty{ display:none; }
+  /* 뷰포트 세로가 짧으면(예: 맥OS 크롬처럼 탭바·북마크바가 세로를 많이 먹는
+     창) "다음 인물" 버튼이 차지하던 자리를 본문 읽기 영역에 돌려줍니다 —
+     되돌아가기는 뒤로가기 버튼으로 항상 가능하므로 필수 UI는 아닙니다.
+     (반드시 기본 #category-nav 규칙 *뒤*에 와야 display:none이 이깁니다.) */
+  @media (max-height:700px){
+    #category-nav{ display:none; }
+  }
   .category-nav-btn{
     flex:1;
     display:flex;
