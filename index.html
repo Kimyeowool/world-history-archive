@@ -178,6 +178,25 @@
     /* 색감은 CSS 필터가 아니라 텍스처 자체를 재구성해서 반영합니다 */
   }
   #globe-container:active{ cursor:grabbing; }
+  /* 영토 이름 라벨 — 색칠된 영토 위에 얹히는 세력 이름. 지도 위 어떤
+     색(빨강이든 초록이든) 위에서도 읽히도록 짙은 그림자를 겹겹이 둘러
+     테두리 효과를 냅니다. 클릭/드래그를 가로채지 않도록 pointer-events는
+     꺼두고, 국가 폴리곤 클릭·지구본 드래그가 그대로 통과합니다. */
+  .territory-label{
+    position:absolute;
+    transform:translate(-50%, -50%);
+    font-family:'Cormorant Garamond', serif;
+    font-weight:600;
+    font-style:italic;
+    color:rgba(240,232,214,0.94);
+    letter-spacing:0.14em;
+    white-space:nowrap;
+    text-shadow:
+      0 0 3px rgba(5,8,14,0.95), 0 0 3px rgba(5,8,14,0.95),
+      0 0 9px rgba(5,8,14,0.85), 0 0 16px rgba(5,8,14,0.6);
+    pointer-events:none;
+    user-select:none;
+  }
   #flatmap-container{
     display:none;
     position:relative;
@@ -1840,44 +1859,48 @@
      최전성기 영토 기준으로, 그 영토를 포함했던 "현재" 국경 국가들을
      색칠합니다 (당시 실제 국경을 새로 그리지 않고 현재 국가 단위로 근사).
      ===================================================================== */
+  // 채도를 원색 대비 15% 낮춘 값들입니다(HSL 기준 S *= 0.85) — 원색 그대로
+  // 쓰면 지구본 위에서 너무 쨍하게 튀어서, 톤을 살짝 죽여 지도 색감과
+  // 어우러지게 했습니다. 무채색(회색·짙은 남색 등, 채도가 이미 낮은 색)은
+  // 사실상 그대로입니다.
   const EMPIRE_COLORS = {
-    rome:      '#A10807',
-    westRome:  '#F09D7B',
-    byzantium: '#B5DEB4',
-    hre:       '#FDD40E',
-    ottoman:   '#19B591',
-    mongol:    '#004DAF',
-    soviet:    '#CC0000',
-    persia:    '#3800D3',
-    britain:   '#C8102E',
-    macedon:   '#D6B429',
-    greece:       '#AB92A8',
-    persiaGreco:  '#848D7C',
-    china:        '#996633',
-    islamMedina:   '#009900',
-    islamArabia:   '#009900',
-    islamRashidun: '#009900',
-    islamUmayyad:  '#009900',
-    // 009900은 이 프로젝트에서 앞으로 이슬람 세력을 나타내는 기본색입니다
-    islamCrusades:      '#009900',
-    ottomanEarly:        '#009900',
-    ottomanPostConquest: '#009900',
-    vikingHomeland: '#002664',
-    vikingReach:    '#F20C0C',
-    greecePeloponnesian: '#0D5EAF',
-    englandHYW:       '#E60001',
-    franceHYW:        '#0D5AF4',
-    englandFranceUnionHYW: '#E60001',
+    rome:      '#951313',
+    westRome:  '#E7A184',
+    byzantium: '#B8DBB7',
+    hre:       '#EBC820',
+    ottoman:   '#25A98B',
+    mongol:    '#0D4FA2',
+    soviet:    '#BD0F0F',
+    persia:    '#3F10C3',
+    britain:   '#BA1E37',
+    macedon:   '#C9AC36',
+    greece:       '#A994A7',
+    persiaGreco:  '#848C7D',
+    china:        '#91663B',
+    islamMedina:   '#0B8E0B',
+    islamArabia:   '#0B8E0B',
+    islamRashidun: '#0B8E0B',
+    islamUmayyad:  '#0B8E0B',
+    // 0B8E0B은 이 프로젝트에서 앞으로 이슬람 세력을 나타내는 기본색입니다
+    islamCrusades:      '#0B8E0B',
+    ottomanEarly:        '#0B8E0B',
+    ottomanPostConquest: '#0B8E0B',
+    vikingHomeland: '#08285C',
+    vikingReach:    '#E11D1D',
+    greecePeloponnesian: '#195EA3',
+    englandHYW:       '#D51112',
+    franceHYW:        '#1E60E3',
+    englandFranceUnionHYW: '#D51112',
     goryeo:  '#E7E7E7',
-    khitan:  '#004DAF',
-    jurchen: '#004DAF',
+    khitan:  '#0D4FA2',
+    jurchen: '#0D4FA2',
     // 제1차 세계대전 — 협상국(연합국)과 동맹국. 이 두 색이 이 프로젝트에서
     // 앞으로 각각 협상국/동맹국의 기본색입니다.
-    ententeWWI:       '#002654',
+    ententeWWI:       '#06274E',
     centralPowersWWI: '#303030',
     // 서부/동부전선 하위 페이지에서 국가를 하나씩만 남길 때도 같은 색을 유지
-    franceWWI:  '#002654',
-    russiaWWI:  '#002654',
+    franceWWI:  '#06274E',
+    russiaWWI:  '#06274E',
     germanyWWI: '#303030'
   };
   const EMPIRE_COUNTRIES = {
@@ -2318,6 +2341,7 @@
       lastFlownEmpirePageKey = null;
       updateGlobePoints([]);
       updateGlobePaths([]);
+      updateGlobeLabels([]);
       return;
     }
     active.page.layers.forEach(l => {
@@ -2325,6 +2349,7 @@
     });
     updateGlobePoints(active.page.points || []);
     updateGlobePaths(active.page.fronts || []);
+    updateGlobeLabels(active.page.layers.map(l => l.empireKey));
     if (lastFlownEmpirePageKey !== active.key){
       lastFlownEmpirePageKey = active.key;
       if (active.page.origin){
@@ -2398,12 +2423,36 @@
 
   // 영토 국가들의 대표 위치(featureRepresentativePoint, 지구본 컬링에 쓰는
   // 것과 동일한 함수)를 3D 단위벡터로 평균 내 무게중심을 구하고, 그 중심에서
-  // 가장 먼 나라까지의 각거리로 카메라 고도(altitude)를 정해 영토 전체가
-  // 화면에 들어오도록 맞춥니다(EMPIRE_ALTITUDE_OVERRIDE에 지정된 제국은 그
-  // 값을 그대로 씁니다). 지구본 모드에서만 동작하며, 자동회전만 멈출 뿐
-  // 컨트롤(드래그 회전)은 그대로 살아있어 사용자가 바로 이어서 움직일 수
-  // 있습니다 — 시점을 강제로 고정하는 게 아니라 "이쪽을 보여드릴게요" 정도의
-  // 안내용 카메라 이동입니다.
+  // 가장 먼 나라까지의 각거리(maxSpread)를 함께 반환합니다. flyToEmpireTerritory의
+  // 카메라 고도 계산과 updateGlobeLabels의 라벨 위치·크기 계산이 이 하나의
+  // 함수를 공유합니다 — 두 기능이 "영토가 어디쯤, 얼마나 넓게 퍼져있는가"를
+  // 서로 다르게 계산해 어긋나는 일이 없도록 합니다.
+  function computeEmpireCentroid(empireKeys){
+    const keys = Array.isArray(empireKeys) ? empireKeys : [empireKeys];
+    const names = new Set(keys.flatMap(k => EMPIRE_COUNTRIES[k] || []));
+    if (!names.size || !globeCountryFeatures.length) return null;
+    const reps = globeCountryFeatures.filter(f => names.has(f.properties.name)).map(featureRepresentativePoint);
+    if (!reps.length) return null;
+    let sx = 0, sy = 0, sz = 0;
+    reps.forEach(r => {
+      const lat = r.lat * Math.PI / 180, lng = r.lng * Math.PI / 180;
+      sx += Math.cos(lat) * Math.cos(lng);
+      sy += Math.cos(lat) * Math.sin(lng);
+      sz += Math.sin(lat);
+    });
+    sx /= reps.length; sy /= reps.length; sz /= reps.length;
+    const lat = Math.atan2(sz, Math.sqrt(sx * sx + sy * sy)) * 180 / Math.PI;
+    const lng = Math.atan2(sy, sx) * 180 / Math.PI;
+    const maxSpread = Math.max(...reps.map(r => angularDistDeg(lat, lng, r.lat, r.lng)));
+    return { lat, lng, maxSpread, countryCount: reps.length };
+  }
+
+  // 무게중심을 구하고, 그 중심에서 가장 먼 나라까지의 각거리로 카메라
+  // 고도(altitude)를 정해 영토 전체가 화면에 들어오도록 맞춥니다
+  // (EMPIRE_ALTITUDE_OVERRIDE에 지정된 제국은 그 값을 그대로 씁니다).
+  // 지구본 모드에서만 동작하며, 자동회전만 멈출 뿐 컨트롤(드래그 회전)은
+  // 그대로 살아있어 사용자가 바로 이어서 움직일 수 있습니다 — 시점을 강제로
+  // 고정하는 게 아니라 "이쪽을 보여드릴게요" 정도의 안내용 카메라 이동입니다.
   function flyToEmpireTerritory(empireKeys){
     if (!worldGlobe) return;
     const globeEl = document.getElementById('globe-container');
@@ -2419,25 +2468,58 @@
       return;
     }
 
-    const names = new Set(keys.flatMap(k => EMPIRE_COUNTRIES[k] || []));
-    if (!names.size || !globeCountryFeatures.length) return;
-    const reps = globeCountryFeatures.filter(f => names.has(f.properties.name)).map(featureRepresentativePoint);
-    if (!reps.length) return;
-    let sx = 0, sy = 0, sz = 0;
-    reps.forEach(r => {
-      const lat = r.lat * Math.PI / 180, lng = r.lng * Math.PI / 180;
-      sx += Math.cos(lat) * Math.cos(lng);
-      sy += Math.cos(lat) * Math.sin(lng);
-      sz += Math.sin(lat);
-    });
-    sx /= reps.length; sy /= reps.length; sz /= reps.length;
-    const lat = Math.atan2(sz, Math.sqrt(sx * sx + sy * sy)) * 180 / Math.PI;
-    const lng = Math.atan2(sy, sx) * 180 / Math.PI;
-    const maxSpread = Math.max(...reps.map(r => angularDistDeg(lat, lng, r.lat, r.lng)));
+    const centroid = computeEmpireCentroid(keys);
+    if (!centroid) return;
     const altitudeOverride = keys.length === 1 ? EMPIRE_ALTITUDE_OVERRIDE[keys[0]] : null;
-    const altitude = altitudeOverride || Math.min(3.2, Math.max(1.3, maxSpread / 22));
+    const altitude = altitudeOverride || Math.min(3.2, Math.max(1.3, centroid.maxSpread / 22));
     setAutoRotate(false);
-    worldGlobe.pointOfView({ lat, lng, altitude }, 1600);
+    worldGlobe.pointOfView({ lat: centroid.lat, lng: centroid.lng, altitude }, 1600);
+  }
+
+  // 영토 이름 라벨 텍스트. EMPIRE_COLORS/EMPIRE_COUNTRIES의 키와 1:1 대응하며,
+  // 그 세력이 그 페이지 맥락에서 불리는 이름을 담습니다(같은 나라라도 시대에
+  // 따라 이름이 달라지는 경우 — 오스만 제국의 여러 단계 등 — 이 있어
+  // EMPIRE_COUNTRIES 키 단위로 따로 관리합니다).
+  const EMPIRE_LABEL_TEXT = {
+    rome: '로마 제국', westRome: '서로마 제국', byzantium: '동로마 제국', hre: '신성로마제국',
+    ottoman: '오스만 제국', mongol: '몽골 제국', soviet: '소비에트 연방', persia: '페르시아 제국',
+    britain: '대영 제국', macedon: '마케도니아 제국',
+    greece: '그리스', persiaGreco: '페르시아 제국', china: '중국',
+    islamMedina: '메디나 공동체', islamArabia: '아라비아', islamRashidun: '정통 칼리프국',
+    islamUmayyad: '우마이야 왕조', islamCrusades: '이슬람 세력',
+    ottomanEarly: '오스만 제국', ottomanPostConquest: '오스만 제국',
+    vikingHomeland: '스칸디나비아', vikingReach: '바이킹의 활동 범위',
+    greecePeloponnesian: '그리스',
+    englandHYW: '잉글랜드 왕국', franceHYW: '프랑스 왕국', englandFranceUnionHYW: '잉글랜드-프랑스 동군연합',
+    goryeo: '고려', khitan: '거란(요)', jurchen: '여진(금)',
+    ententeWWI: '협상국', centralPowersWWI: '동맹국',
+    franceWWI: '프랑스', russiaWWI: '러시아', germanyWWI: '독일'
+  };
+
+  // 라벨 하나의 DOM 엘리먼트를 만듭니다. 글자 크기를 영토가 퍼진 범위
+  // (maxSpread, 무게중심에서 가장 먼 나라까지의 각거리)에 비례시켜, 작은
+  // 나라 하나짜리 영토는 작게, 대제국급 영토는 큼직하게 나오도록 합니다.
+  function buildTerritoryLabelEl(d){
+    const el = document.createElement('div');
+    el.className = 'territory-label';
+    el.textContent = d.text;
+    el.style.fontSize = Math.max(13, Math.min(40, d.maxSpread * 1.35)) + 'px';
+    return el;
+  }
+
+  // 현재 페이지에서 활성화된 제국 키들 각각에 대해 무게중심 위치에 이름
+  // 라벨을 하나씩 띄웁니다. updateEmpireOverlay()가 국가 색칠을 갱신할 때
+  // 함께 호출합니다.
+  function updateGlobeLabels(empireKeys){
+    if (!worldGlobe) return;
+    const keys = (empireKeys || []).filter(k => EMPIRE_LABEL_TEXT[k]);
+    if (!keys.length){ worldGlobe.htmlElementsData([]); return; }
+    const labels = keys.map(key => {
+      const centroid = computeEmpireCentroid([key]);
+      if (!centroid) return null;
+      return { lat: centroid.lat, lng: centroid.lng, maxSpread: centroid.maxSpread, text: EMPIRE_LABEL_TEXT[key] };
+    }).filter(Boolean);
+    worldGlobe.htmlElementsData(labels);
   }
 
   function renderCategoryPanel(){
@@ -2494,6 +2576,7 @@
     lastFlownConstantinople = false;
     updateGlobePoints([]);
     updateGlobePaths([]);
+    updateGlobeLabels([]);
     setTimeout(() => {
       categoryStack = [];
       const listEl = document.getElementById('category-list');
@@ -3106,7 +3189,15 @@
       .onPathHover(p => {
         if (p) showFrontTooltip(p.label, lastMouseX, lastMouseY);
         else hideCountryTooltip();
-      });
+      })
+      // 영토 이름 라벨 — 색칠된 영토 위에 그 세력의 이름을 얹습니다.
+      // updateGlobeLabels()가 페이지별로 채웁니다.
+      .htmlElementsData([])
+      .htmlLat('lat')
+      .htmlLng('lng')
+      .htmlAltitude(0.015)
+      .htmlElement(buildTerritoryLabelEl)
+      .htmlTransitionDuration(800);
 
     // 성능 추가 최적화: 픽셀비율을 더 낮춰 GPU 픽셀 채우기 비용을 줄입니다
     // (고해상도 디스플레이일수록 효과가 큼 — 시각적으로는 거의 티가 안 남)
