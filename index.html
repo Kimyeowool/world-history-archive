@@ -2752,7 +2752,7 @@
   const COUNTRY_KO = {
     'United States of America':'미국','Canada':'캐나다','Mexico':'멕시코','Brazil':'브라질','Argentina':'아르헨티나',
     'Chile':'칠레','Peru':'페루','Colombia':'콜롬비아','Venezuela':'베네수엘라','Ecuador':'에콰도르',
-    'Bolivia':'볼리비아','Paraguay':'파라과이','Uruguay':'우루과이','Guyana':'가이아나','Suriname':'수리남',
+    'Bolivia':'볼리비아','Paraguay':'파라과이','Uruguay':'우루과이','Guyana':'가이아나','Suriname':'수리남','French Guiana':'프랑스령 기아나',
     'Falkland Is.':'포클랜드 제도',
     'Panama':'파나마','Costa Rica':'코스타리카','Nicaragua':'니카라과','Honduras':'온두라스','El Salvador':'엘살바도르',
     'Guatemala':'과테말라','Belize':'벨리즈','Cuba':'쿠바','Jamaica':'자메이카','Haiti':'아이티',
@@ -2803,7 +2803,7 @@
   const COUNTRY_ISO2 = {
     'United States of America':'us','Canada':'ca','Mexico':'mx','Brazil':'br','Argentina':'ar',
     'Chile':'cl','Peru':'pe','Colombia':'co','Venezuela':'ve','Ecuador':'ec',
-    'Bolivia':'bo','Paraguay':'py','Uruguay':'uy','Guyana':'gy','Suriname':'sr','Falkland Is.':'fk',
+    'Bolivia':'bo','Paraguay':'py','Uruguay':'uy','Guyana':'gy','Suriname':'sr','French Guiana':'gf','Falkland Is.':'fk',
     'Panama':'pa','Costa Rica':'cr','Nicaragua':'ni','Honduras':'hn','El Salvador':'sv',
     'Guatemala':'gt','Belize':'bz','Cuba':'cu','Jamaica':'jm','Haiti':'ht',
     'Dominican Rep.':'do','Dominican Republic':'do',
@@ -3276,13 +3276,39 @@
     return rest;
   }
 
+  // world-atlas 데이터셋은 프랑스령 기아나(남미)를 별도 국가가 아니라 "France"
+  // MultiPolygon 안의 한 조각(첫 번째 조각!)으로 합쳐서 제공합니다. 이 때문에
+  // 색칠·툴팁이 기아나까지 프랑스로 표시되는 건 물론, 대표점 계산이 첫 조각을
+  // 쓰는 로직이라 프랑스 관련 무게중심·카메라 이동까지 엉뚱하게 기아나 쪽으로
+  // 쏠립니다. 경도로 유럽 조각(본토+코르시카, 서경 5도~동경 10도)과 남미 조각
+  // (서경 51~55도)을 갈라 별도 Feature로 분리합니다.
+  function splitFrenchGuiana(features){
+    const idx = features.findIndex(f => f.properties && f.properties.name === 'France');
+    if (idx === -1) return features;
+    const france = features[idx];
+    if (france.geometry.type !== 'MultiPolygon') return features;
+    const guianaPolys = [], europePolys = [];
+    france.geometry.coordinates.forEach(poly => {
+      const isGuiana = poly.every(ring => ring.every(pt => pt[0] < -20));
+      (isGuiana ? guianaPolys : europePolys).push(poly);
+    });
+    if (!guianaPolys.length) return features;
+    features[idx] = { ...france, geometry: { type: 'MultiPolygon', coordinates: europePolys } };
+    features.push({
+      type: 'Feature',
+      properties: { name: 'French Guiana' },
+      geometry: { type: 'MultiPolygon', coordinates: guianaPolys }
+    });
+    return features;
+  }
+
   // 국경 폴리곤 데이터 로드 — 지구본은 110m(가벼움, 부드러운 프레임),
   // 평면지도는 50m(더 정밀한 국경)를 따로 불러와 각각 최적의 성능/디테일을
   // 확보합니다. 남극은 위에서 만든 단순화된 도형 하나로 항상 통일해서 씁니다.
   fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json')
     .then(res => res.json())
     .then(topo => {
-      countryFeatures = replaceAntarcticaWithSimpleShape(unifyAntarctica(topojson.feature(topo, topo.objects.countries).features));
+      countryFeatures = replaceAntarcticaWithSimpleShape(unifyAntarctica(splitFrenchGuiana(topojson.feature(topo, topo.objects.countries).features)));
       buildFlatMapBorders();
     })
     .catch(err => console.error('국경 데이터(50m) 로드 실패:', err));
@@ -3290,7 +3316,7 @@
   fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json')
     .then(res => res.json())
     .then(topo => {
-      globeCountryFeatures = replaceAntarcticaWithSimpleShape(unifyAntarctica(topojson.feature(topo, topo.objects.countries).features));
+      globeCountryFeatures = replaceAntarcticaWithSimpleShape(unifyAntarctica(splitFrenchGuiana(topojson.feature(topo, topo.objects.countries).features)));
       if (worldGlobe) worldGlobe.polygonsData(globeCountryFeatures);
       startGlobeCulling();
     })
