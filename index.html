@@ -2077,6 +2077,19 @@
       { layerId: 'empire-greece', empireKey: 'greece' },
       { layerId: 'empire-persia-greco', empireKey: 'persiaGreco' }
     ] },
+    // 하위 전투마다 그 전투의 실제 지형지물(협곡·해협)을 지점으로 표시
+    '전쟁사>고대 전쟁사 (~BC 3000~AD 5세기)>그리스-페르시아 전쟁>테르모필레 전투': { layers: [
+      { layerId: 'empire-greece', empireKey: 'greece' },
+      { layerId: 'empire-persia-greco', empireKey: 'persiaGreco' }
+    ], points: [
+      { lat: 38.80, lng: 22.54, color: '#E8B84B', label: '테르모필레' }
+    ] },
+    '전쟁사>고대 전쟁사 (~BC 3000~AD 5세기)>그리스-페르시아 전쟁>살라미스 해전': { layers: [
+      { layerId: 'empire-greece', empireKey: 'greece' },
+      { layerId: 'empire-persia-greco', empireKey: 'persiaGreco' }
+    ], points: [
+      { lat: 37.97, lng: 23.53, color: '#4FC3F7', label: '살라미스 해협' }
+    ] },
     // 펠로폰네소스 전쟁 — 그리스 내전이므로 그리스 본토만 표시
     '전쟁사>고대 전쟁사 (~BC 3000~AD 5세기)>펠로폰네소스 전쟁': { layers: [
       { layerId: 'empire-greece-pelop', empireKey: 'greecePeloponnesian' }
@@ -2086,6 +2099,16 @@
     ] },
     '전쟁사>고대 전쟁사 (~BC 3000~AD 5세기)>알렉산드로스의 정복전쟁': { layers: [
       { layerId: 'empire-macedon', empireKey: 'macedon' }
+    ], points: [
+      { lat: 40.23, lng: 27.24, color: '#E8B84B', label: '그라니코스강' }
+    ] },
+    // 인도 원정 하위 페이지에서만 두 강을 추가로 표시 — 진군의 끝(인더스강)과
+    // 병사들이 회군을 요구한 지점(히파시스강)
+    '전쟁사>고대 전쟁사 (~BC 3000~AD 5세기)>알렉산드로스의 정복전쟁>인도 원정과 회군': { layers: [
+      { layerId: 'empire-macedon', empireKey: 'macedon' }
+    ], points: [
+      { lat: 33.88, lng: 72.47, color: '#4FC3F7', label: '인더스강' },
+      { lat: 31.62, lng: 75.03, color: '#4FC3F7', label: '히파시스강' }
     ] },
     '전쟁사>고대 전쟁사 (~BC 3000~AD 5세기)>춘추전국시대와 손자병법': { layers: [
       { layerId: 'empire-china', empireKey: 'china' }
@@ -2417,6 +2440,7 @@
     // 저지된 자연 장벽인 피레네산맥을 대서양 연안에서 지중해 연안까지 표시
     pyrenees: {
       color: '#C2A878',
+      stroke: 4.5, // 전선이 아니라 산맥이므로 두껍게
       label: '피레네산맥',
       coords: [
         [43.35, -1.77], // 대서양 연안(온다리비아 인근)
@@ -3203,7 +3227,9 @@
       .pathPointLng(p => p[1])
       .pathPointAlt(0.02)
       .pathColor(d => d.color)
-      .pathStroke(1.4)
+      // 전투 전선(戰線)은 얇은 기본값, 산맥처럼 이어진 지형지물은 각 항목의
+      // stroke 값으로 더 두껍게 — 선이 아니라 지형 그 자체라는 걸 구분해줍니다
+      .pathStroke(d => d.stroke || 1.4)
       .pathDashLength(1)
       .pathDashGap(0)
       .pathTransitionDuration(800)
