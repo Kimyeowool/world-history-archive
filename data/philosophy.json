@@ -1397,9 +1397,12 @@
               }
             },
             "대륙 철학 (19세기 후반~)": {
-              "desc": "인간 존재, 역사, 언어, 사회 속에서 의미를 탐구하는 철학 전통.\n니체, 하이데거, 사르트르, 푸코 등은 존재, 권력, 의식, 인간 주체의 문제를 새롭게 해석하였다.",
+              "desc": "인간 존재, 역사, 언어, 사회 속에서 의미를 탐구하는 철학 전통으로, 니체와 생철학·실존주의·후기구조주의·정신분석과 이데올로기 비판의 네 흐름으로 나뉜다.\n니체, 하이데거, 사르트르, 푸코 등은 존재, 권력, 의식, 인간 주체의 문제를 새롭게 해석하였다.",
               "groups": [
-                { "header": null, "items": ["프리드리히 니체 (Friedrich Nietzsche)","장폴 사르트르 (Jean-Paul Sartre)","알베르 카뮈 (Albert Camus)","마르틴 하이데거 (Martin Heidegger)","미셸 푸코 (Michel Foucault)","카를 야스퍼스 (Karl Jaspers)","질 들뢰즈 (Gilles Deleuze)","슬라보예 지젝 (Slavoj Žižek)"] }
+                { "header": "니체와 생철학 (19세기 후반)", "items": ["프리드리히 니체 (Friedrich Nietzsche)"] },
+                { "header": "실존주의 (20세기)", "items": ["마르틴 하이데거 (Martin Heidegger)","카를 야스퍼스 (Karl Jaspers)","장폴 사르트르 (Jean-Paul Sartre)","알베르 카뮈 (Albert Camus)"] },
+                { "header": "후기구조주의 (20세기 후반)", "items": ["미셸 푸코 (Michel Foucault)","질 들뢰즈 (Gilles Deleuze)"] },
+                { "header": "정신분석과 이데올로기 비판 (20세기말~)", "items": ["슬라보예 지젝 (Slavoj Žižek)"] }
               ],
               "children": {
                 "프리드리히 니체 (Friedrich Nietzsche)": {
